@@ -1,0 +1,45 @@
+{
+  "name": "honesty-mcp",
+  "version": "0.1.0",
+  "description": "MCP server exposing the ten-kit 'honesty SDK' family (grounding-kit, corroboration-kit, payout-invariance-kit, mutation-invariance-kit, trust-core, provenance-kit, claims-registry-kit, audit-chain-kit, agent-receipt-kit, cost-governor-kit) as tools any MCP-compatible coding agent can call while building or auditing a product.",
+  "type": "module",
+  "license": "MIT",
+  "private": true,
+  "bin": {
+    "honesty-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "smoke": "node dist/smoke.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.0.0",
+    "grounding-kit": "file:../grounding-kit",
+    "corroboration-kit": "file:../corroboration-kit",
+    "payout-invariance": "file:../payout-invariance-kit",
+    "mutation-invariance-kit": "file:../mutation-invariance-kit",
+    "trust-core": "file:../trust-core",
+    "provenance-kit": "file:../provenance-kit",
+    "claims-registry-kit": "file:../claims-registry-kit",
+    "audit-chain-kit": "file:../audit-chain-kit",
+    "agent-receipt-kit": "file:../agent-receipt-kit",
+    "cost-governor-kit": "file:../cost-governor-kit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.9"
+  },
+  "engines": {
+    "node": ">=19"
+  }
+}
