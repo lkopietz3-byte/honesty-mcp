@@ -14,6 +14,7 @@ import { registerClaimsRegistryTool } from "./tools/claimsRegistry.js";
 import { registerAuditChainTools } from "./tools/auditChain.js";
 import { registerAgentReceiptScaffoldTool } from "./tools/agentReceiptScaffold.js";
 import { registerCostGovernorScaffoldTool } from "./tools/costGovernorScaffold.js";
+import { registerAdviceLedgerGradeTool, registerAdviceLedgerDivergenceTool } from "./tools/adviceLedger.js";
 
 export const SERVER_NAME = "honesty-mcp";
 export const SERVER_VERSION = "0.1.0";
@@ -22,8 +23,9 @@ export const SERVER_VERSION = "0.1.0";
 export function createServer(): McpServer {
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
 
-  // 8 content-checking tools (kits 1-8, one kit split across two tools each
-  // for payout-invariance and audit-chain -- see README.md for the mapping).
+  // 9 content-checking kits, 12 tools (one tool each, except payout-invariance,
+  // audit-chain, and advice-ledger which each split into two genuinely
+  // distinct operations -- see README.md for the mapping).
   registerGroundingTool(server);
   registerCorroborationTool(server);
   registerPayoutInvarianceTool(server);
@@ -33,8 +35,11 @@ export function createServer(): McpServer {
   registerProvenanceTool(server);
   registerClaimsRegistryTool(server);
   registerAuditChainTools(server); // append_audit_entry + verify_audit_chain
+  registerAdviceLedgerGradeTool(server); // grade_decision
+  registerAdviceLedgerDivergenceTool(server); // compute_divergence
 
-  // 2 scaffold/guidance tools (kits 9-10 -- runtime libraries, not content checks).
+  // 2 scaffold/guidance tools (agent-receipt-kit, cost-governor-kit -- runtime
+  // libraries, not content checks).
   registerAgentReceiptScaffoldTool(server);
   registerCostGovernorScaffoldTool(server);
 

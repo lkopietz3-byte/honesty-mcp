@@ -1,13 +1,14 @@
 # honesty-mcp
 
-An MCP (Model Context Protocol) server that exposes ten already-built,
+An MCP (Model Context Protocol) server that exposes eleven already-built,
 zero-runtime-dependency "honesty SDK" TypeScript libraries as tools any
 MCP-compatible coding agent (Claude Code, Claude Desktop, or any other MCP
 client) can call while building or auditing a product — grounded-citation
 checking, evidence corroboration grading, payout/mutation-invariance
 proofs, trust/authenticity scoring, provenance-claim validation, a claims
-registry, and a tamper-evident audit chain, plus scaffolding for two
-runtime-library kits that don't fit the "check this content" shape.
+registry, a tamper-evident audit chain, and recommendation/decision grading
+plus engine-vs-human divergence, plus scaffolding for two runtime-library
+kits that don't fit the "check this content" shape.
 
 This server is thin by design: every tool is a Zod input schema plus a
 handler that imports and calls the real, unmodified export from the wrapped
@@ -15,10 +16,10 @@ kit. It does not reimplement any of the underlying logic.
 
 ## Status: monorepo-adjacent, not yet npm-installable
 
-**This package depends on its ten sibling kits via local `file:` paths**
+**This package depends on its eleven sibling kits via local `file:` paths**
 (e.g. `"grounding-kit": "file:../grounding-kit"`), because none of them are
 published to npm yet. That means `honesty-mcp` only works if it sits next
-to all ten sibling directories, exactly as laid out today:
+to all eleven sibling directories, exactly as laid out today:
 
 ```
 ~/grounding-kit/
@@ -29,6 +30,7 @@ to all ten sibling directories, exactly as laid out today:
 ~/provenance-kit/
 ~/claims-registry-kit/
 ~/audit-chain-kit/
+~/advice-ledger-kit/
 ~/agent-receipt-kit/
 ~/cost-governor-kit/
 ~/honesty-mcp/                <- this package
@@ -43,7 +45,7 @@ independently installable package — say so plainly to anyone using it.
 
 ## What's in each sibling kit, and whether it needed a build fix
 
-Three of the ten sibling kits originally pointed their `package.json`
+Three of the eleven sibling kits originally pointed their `package.json`
 `main`/`exports` fields directly at raw `src/*.ts` with no `build` script —
 that resolves fine for a TypeScript-aware bundler inside the same
 monorepo, but not for a plain `file:` dependency loaded by Node's own
@@ -57,17 +59,22 @@ fix** (no `src/` or test changes) so `npm install && npm run build` in
 | `payout-invariance-kit` (npm name `payout-invariance`) | `main`/`exports`/`types` pointed straight at `src/index.ts`; no `build` script existed | Added `tsconfig.build.json`, added a `build` script (`tsc -p tsconfig.build.json`), repointed `main`/`module`/`types`/`exports` at `./dist/*`. |
 | `mutation-invariance-kit` | Same problem, plus a `./presets` subpath export also pointing at raw `src/` | Same fix, extended to the `./presets` subpath; `tsconfig.build.json` excludes `*.test.ts` so test files aren't emitted into `dist/`. |
 | `cost-governor-kit` | Had a `"build": "tsc"` script, but it emitted alongside `main`/`exports` still pointing at `src/*.ts`, and would have emitted its `*.test.ts` files into `dist/` too | Added `tsconfig.build.json` (excludes `*.test.ts`), repointed `build` at it, repointed `main`/`module`/`types`/`exports` (including the `./pricing`, `./preCallCeiling`, `./reserveConfirm` subpaths) at `./dist/*`. |
-| `corroboration-kit`, `trust-core`, `provenance-kit`, `claims-registry-kit`, `audit-chain-kit`, `agent-receipt-kit` | None — already had a `dist/` build step correctly wired | No changes. |
+| `corroboration-kit`, `trust-core`, `provenance-kit`, `claims-registry-kit`, `audit-chain-kit`, `agent-receipt-kit`, `advice-ledger-kit` | None — already had a `dist/` build step correctly wired | No changes. |
 
 After each fix, that kit's own `npm test` and `npm run typecheck` were
 re-run and still pass — nothing in `src/` or any `*.test.ts` file was
 touched, only `package.json` and a new `tsconfig.build.json`.
 
+(`advice-ledger-kit` was wired in after the other ten, once it existed —
+its `package.json`/`exports` already pointed at `./dist/*` with a working
+`build` script, same shape as the "no changes" row above, so it needed no
+fix either.)
+
 ## Running it
 
 ```bash
 cd ~/honesty-mcp
-npm install       # resolves the 10 sibling file: dependencies too
+npm install       # resolves the 11 sibling file: dependencies too
 npm run build      # compiles src/ -> dist/
 npm start           # runs dist/index.js on stdio
 ```
@@ -107,8 +114,8 @@ subprocess from its own working directory, not from `~/honesty-mcp`.
 
 ## Tools
 
-**8 content-checking tools** (kits 1–8 — hand one of these real content or
-data, get back a structured verdict):
+**9 content-checking tools' worth of kits, 12 tools** (kits 1–9 — hand one
+of these real content or data, get back a structured verdict):
 
 | Tool | Wraps | One-line purpose |
 |---|---|---|
@@ -122,11 +129,13 @@ data, get back a structured verdict):
 | `check_claims_registry` | claims-registry-kit | Buckets public-facing claims as current / stale / unverified against their linked evidence and last-verified date. |
 | `append_audit_entry` | audit-chain-kit | Appends one entry to a hash-chained, tamper-evident audit log. |
 | `verify_audit_chain` | audit-chain-kit | Independently re-verifies a hash chain from genesis; detects mutation, severed links, and (with `expectedMinLength`) tail truncation. |
+| `grade_decision` | advice-ledger-kit | Grades one recommendation-and-decision pair against a before/after observation log — exposure-aligned, with separate floors per window and machine-readable refusal codes. |
+| `compute_divergence` | advice-ledger-kit | Measures how often an engine and a human disagreed, and where a later outcome exists, reports engine-right/human-right as separate, never-blended counts. |
 
-**2 scaffolding tools** (kits 9–10 — these are runtime libraries a project
-*installs and imports into its own running code*, not something checked
-on-demand the same way; see the code comments in
-`src/tools/agentReceiptScaffold.ts` / `costGovernorScaffold.ts` for why a
+**2 scaffolding tools** (agent-receipt-kit, cost-governor-kit — these are
+runtime libraries a project *installs and imports into its own running
+code*, not something checked on-demand the same way; see the code comments
+in `src/tools/agentReceiptScaffold.ts` / `costGovernorScaffold.ts` for why a
 "check this content" shape would misrepresent them):
 
 | Tool | Wraps | One-line purpose |
@@ -134,13 +143,15 @@ on-demand the same way; see the code comments in
 | `scaffold_agent_receipts` | agent-receipt-kit | Explains the issue-a-packet / verify-the-claim authorization pattern for AI agents, with an install step, a starter snippet, and (optionally) a live accepted/rejected worked example run against the real kit. |
 | `scaffold_cost_governor` | cost-governor-kit | Explains the pre-call dollar ceiling + cache-aware pricing math + reserve-then-confirm usage-counting pattern, with an install step, a starter snippet, and (optionally) a live worked example. |
 
-That's 8 kits, 10 content-checking tool slots (payout-invariance-kit and
-audit-chain-kit each got 2 tools instead of 1, since each bundles two
-genuinely distinct operations — runtime check vs. static grep; append vs.
-verify — that read better as separate, single-purpose MCP tools than as
-one tool with a mode switch) plus 2 scaffolding tools = **12 tools total**.
+That's 9 kits, 12 content-checking tool slots (payout-invariance-kit,
+audit-chain-kit, and advice-ledger-kit each got 2 tools instead of 1, since
+each bundles two genuinely distinct operations — runtime check vs. static
+grep; append vs. verify; grading one decision vs. measuring divergence
+across a whole population — that read better as separate, single-purpose
+MCP tools than as one tool with a mode switch) plus 2 scaffolding tools =
+**14 tools total**.
 
-### A note on the two code-execution tools
+### A note on the code-execution tools
 
 `check_payout_invariance` (runtime mode) and `check_mutation_invariance`
 both wrap kit functions whose real signature takes an actual JavaScript
@@ -148,14 +159,18 @@ both wrap kit functions whose real signature takes an actual JavaScript
 represent a function as MCP JSON arguments. Both tools accept that function
 as a **source-code string** and build the real function in-process via the
 `Function` constructor (`src/lib/buildFunction.ts`) before calling the
-unmodified kit export with it. This is equivalent to `eval` for that one
-string. It is appropriate here because this is a local, stdio-only dev tool
-a coding agent runs against its own project's code — the same trust model
-as that agent running `node -e`, `vitest run`, or any other local
-code-execution tool — and it is **not** designed to be exposed to
-untrusted, remote, or adversarial input. Don't wire this server up to
-accept tool arguments from anyone other than the trusted local agent
-driving it.
+unmodified kit export with it. `compute_divergence`'s optional
+`config.groupBySource` uses the same mechanism for advice-ledger-kit's
+`groupBy` config function, but only when a caller actually supplies it —
+omitting it (the common case) needs no code execution at all, since the
+library's own default groups by each pair's `group` field. This is
+equivalent to `eval` for that one string. It is appropriate here because
+this is a local, stdio-only dev tool a coding agent runs against its own
+project's code — the same trust model as that agent running `node -e`,
+`vitest run`, or any other local code-execution tool — and it is **not**
+designed to be exposed to untrusted, remote, or adversarial input. Don't
+wire this server up to accept tool arguments from anyone other than the
+trusted local agent driving it.
 
 ## Development
 
@@ -190,6 +205,7 @@ src/
     provenance.ts
     claimsRegistry.ts
     auditChain.ts               (append_audit_entry + verify_audit_chain)
+    adviceLedger.ts              (grade_decision + compute_divergence)
     agentReceiptScaffold.ts
     costGovernorScaffold.ts
 test/

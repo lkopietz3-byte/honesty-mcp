@@ -47,7 +47,7 @@ function parseJson(result: unknown): any {
 }
 
 describe("tool listing", () => {
-  it("lists all 11 registered tools with the expected names", async () => {
+  it("lists all 14 registered tools with the expected names", async () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual(
@@ -59,7 +59,9 @@ describe("tool listing", () => {
         "check_mutation_invariance",
         "check_payout_invariance",
         "check_provenance_claims",
+        "compute_divergence",
         "corroborate_evidence",
+        "grade_decision",
         "scaffold_agent_receipts",
         "scaffold_cost_governor",
         "score_trust_identified",
@@ -355,6 +357,101 @@ describe("append_audit_entry / verify_audit_chain (audit-chain-kit)", () => {
     );
     expect(invalidCheck.valid).toBe(false);
     expect(invalidCheck.brokenAtIndex).toBe(0);
+  });
+});
+
+describe("grade_decision (advice-ledger-kit)", () => {
+  const recommendation = {
+    id: "rec-1",
+    subjectId: "server-1",
+    checkKey: "disk-space",
+    proposedAt: "2026-01-01T00:00:00Z",
+  };
+  const decision = { recommendationId: "rec-1", status: "adopted", decidedAt: "2026-01-10T00:00:00Z" };
+
+  it("grades 'holding' when the exposed post-decision window clears the refute bar clean", async () => {
+    const observations = [
+      // Baseline (before decidedAt): 4 observations, 2 bad -- clears minBaselineObservations (3)
+      // and minBaselineBadObservations (1), so the "problem existed before" floor is met.
+      { subjectId: "server-1", checkKey: "disk-space", state: "bad", observedAt: "2026-01-02T00:00:00Z" },
+      { subjectId: "server-1", checkKey: "disk-space", state: "bad", observedAt: "2026-01-04T00:00:00Z" },
+      { subjectId: "server-1", checkKey: "disk-space", state: "good", observedAt: "2026-01-06T00:00:00Z" },
+      { subjectId: "server-1", checkKey: "disk-space", state: "good", observedAt: "2026-01-08T00:00:00Z" },
+      // Result (after decidedAt, exposed): 4 observations, 0 bad -- below the default refuteThreshold (2).
+      { subjectId: "server-1", checkKey: "disk-space", state: "good", observedAt: "2026-01-11T00:00:00Z", exposed: true },
+      { subjectId: "server-1", checkKey: "disk-space", state: "good", observedAt: "2026-01-13T00:00:00Z", exposed: true },
+      { subjectId: "server-1", checkKey: "disk-space", state: "good", observedAt: "2026-01-15T00:00:00Z", exposed: true },
+      { subjectId: "server-1", checkKey: "disk-space", state: "good", observedAt: "2026-01-17T00:00:00Z", exposed: true },
+    ];
+    const result = await client.callTool({ name: "grade_decision", arguments: { decision, recommendation, observations } });
+    const data = parseJson(result);
+    expect(data.verdict).toBe("holding");
+    expect(data.refusalCodes).toEqual([]);
+    expect(data.baseline).toEqual({ observations: 4, bad: 2, good: 2, badRate: 0.5 });
+    expect(data.result).toEqual({ observations: 4, bad: 0, good: 4, badRate: 0 });
+  });
+
+  it("refuses to grade a decision with a too-thin, all-good ledger and names the specific floors missed", async () => {
+    const thinRecommendation = { id: "rec-2", subjectId: "server-2", checkKey: "cpu-load", proposedAt: "2026-01-01T00:00:00Z" };
+    const thinDecision = { recommendationId: "rec-2", status: "adopted", decidedAt: "2026-01-10T00:00:00Z" };
+    const observations = [{ subjectId: "server-2", checkKey: "cpu-load", state: "good", observedAt: "2026-01-05T00:00:00Z" }];
+    const result = await client.callTool({
+      name: "grade_decision",
+      arguments: { decision: thinDecision, recommendation: thinRecommendation, observations },
+    });
+    const data = parseJson(result);
+    expect(data.verdict).toBe("refused");
+    expect(data.refusalCodes.sort()).toEqual(
+      ["baseline_below_minimum", "baseline_lacks_negative_signal", "result_below_minimum", "exposed_result_below_minimum"].sort(),
+    );
+  });
+});
+
+describe("compute_divergence (advice-ledger-kit)", () => {
+  // 8 agreements + 4 divergent pairs (rate 4/12 = 0.333, well above the default 0.05 floor);
+  // of the 4 divergent pairs, 3 have a laterOutcome (meets the default minResolvedDivergent of
+  // 3): engine right twice, human right once, nothing left unaccounted for.
+  const pairs = [
+    { engineJudgment: "approve", humanJudgment: "approve" },
+    { engineJudgment: "approve", humanJudgment: "approve" },
+    { engineJudgment: "approve", humanJudgment: "approve" },
+    { engineJudgment: "approve", humanJudgment: "approve" },
+    { engineJudgment: "reject", humanJudgment: "reject" },
+    { engineJudgment: "reject", humanJudgment: "reject" },
+    { engineJudgment: "reject", humanJudgment: "reject" },
+    { engineJudgment: "reject", humanJudgment: "reject" },
+    { engineJudgment: "approve", humanJudgment: "reject", laterOutcome: "approve" }, // engine right
+    { engineJudgment: "approve", humanJudgment: "reject", laterOutcome: "approve" }, // engine right
+    { engineJudgment: "reject", humanJudgment: "approve", laterOutcome: "approve" }, // human right
+    { engineJudgment: "approve", humanJudgment: "reject" }, // unresolved -- no laterOutcome yet
+  ];
+
+  it("reports divergence and calibration as separate, unblended engine/human hit counts", async () => {
+    const result = await client.callTool({ name: "compute_divergence", arguments: { pairs } });
+    const data = parseJson(result);
+    expect(data.overall.status).toBe("reportable");
+    expect(data.overall.comparablePairs).toBe(12);
+    expect(data.overall.divergentCount).toBe(4);
+    expect(data.overall.calibration.status).toBe("reportable");
+    expect(data.overall.calibration.resolvedDivergent).toBe(3);
+    expect(data.overall.calibration.engineRight).toBe(2);
+    expect(data.overall.calibration.humanRight).toBe(1);
+    expect(data.overall.calibration.neitherRight).toBe(0);
+    expect(data.groups).toEqual([]);
+  });
+
+  it("buckets by a custom groupBySource function built from JS source", async () => {
+    const groupedPairs = pairs.map((p, i) => ({ ...p, group: i < 6 ? "batch-a" : "batch-b" }));
+    const result = await client.callTool({
+      name: "compute_divergence",
+      arguments: {
+        pairs: groupedPairs,
+        config: { groupBySource: "(pair) => pair.group === 'batch-a' ? 'A' : 'B'" },
+      },
+    });
+    const data = parseJson(result);
+    const groupKeys = data.groups.map((g: any) => g.group).sort();
+    expect(groupKeys).toEqual(["A", "B"]);
   });
 });
 
