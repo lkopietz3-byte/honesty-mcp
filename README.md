@@ -141,7 +141,7 @@ in `src/tools/agentReceiptScaffold.ts` / `costGovernorScaffold.ts` for why a
 | Tool | Wraps | One-line purpose |
 |---|---|---|
 | `scaffold_agent_receipts` | agent-receipt-kit | Explains the issue-a-packet / verify-the-claim authorization pattern for AI agents, with an install step, a starter snippet, and (optionally) a live accepted/rejected worked example run against the real kit. |
-| `scaffold_cost_governor` | cost-governor-kit | Explains the pre-call dollar ceiling + cache-aware pricing math + reserve-then-confirm usage-counting pattern, with an install step, a starter snippet, and (optionally) a live worked example. |
+| `scaffold_cost_governor` | cost-governor-kit | Demonstrates estimated pre-call spend checking, cache-aware pricing and the legacy advisory check-then-commit counter. Explains why strict concurrency requires an atomic reservation and ambiguous provider outcomes require reconciliation. |
 
 That's 9 kits, 12 content-checking tool slots (payout-invariance-kit,
 audit-chain-kit, and advice-ledger-kit each got 2 tools instead of 1, since
