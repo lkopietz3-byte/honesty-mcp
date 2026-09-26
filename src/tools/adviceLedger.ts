@@ -12,13 +12,14 @@
 // `computeDivergence`'s real config accepts a `groupBy: (pair) => string |
 // null` function for custom bucketing. MCP arguments are JSON and cannot
 // carry a function value, so `compute_divergence` accepts it as a
-// `groupBySource` JS source string and builds the real function in-process
-// via `buildFunctionFromSource` before calling the unmodified kit export --
-// same treatment, and same trust model, as check_payout_invariance's
-// rankFnSource / check_mutation_invariance's mutateSource (see
-// lib/buildFunction.ts and README.md). Omitting it falls back to the
-// library's own default, which buckets by each pair's own `group` field --
-// that covers the common case without needing any code execution at all.
+// `groupBySource` JS source string and, when supplied, runs the whole
+// computeDivergence call inside a worker_threads Worker with a bounded
+// timeout (see lib/runFunctionJob.ts) -- same treatment, and same trust
+// model, as check_payout_invariance's rankFnSource / check_mutation_invariance's
+// fnSource. Omitting groupBySource falls back to the library's own default,
+// which buckets by each pair's own `group` field -- that covers the common
+// case without needing any code execution (or a worker) at all, so that path
+// still runs computeDivergence directly on the main thread.
 
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -33,8 +34,9 @@ import {
   type GradeConfig,
   type JudgmentPair,
   type DivergenceConfig,
+  type DivergenceResult,
 } from "advice-ledger-kit";
-import { buildFunctionFromSource } from "../lib/buildFunction.js";
+import { runFunctionJob } from "../lib/runFunctionJob.js";
 import { errorMessage, errorResult, jsonResult } from "../lib/result.js";
 
 // ---------------------------------------------------------------------------
@@ -75,10 +77,11 @@ const decisionSchema = z.object({
   status: z.enum(["adopted", "dismissed"]).describe("Whether the human took the advice."),
   decidedAt: z
     .string()
+    .min(1, "decidedAt must not be empty -- the kit treats an empty string as invalid, not as an unknown timestamp.")
     .describe(
       "ISO-8601 timestamp of the human's call. Observations strictly before this form the baseline window; " +
         "observations strictly after (and exposed) form the result window; observations timestamped exactly " +
-        "at this instant are counted (`atBoundaryObservations`) but grade neither window.",
+        "at this instant are counted (`atBoundaryObservations`) but grade neither window. Must be non-empty.",
     ),
 });
 
@@ -88,7 +91,8 @@ const observationSchema = z.object({
   state: z.enum(["good", "bad"]).describe("Whether this dated reading found the thing fine ('good') or not ('bad')."),
   observedAt: z
     .string()
-    .describe("ISO-8601 timestamp of this reading. Compared as a string against decidedAt -- use one consistent format."),
+    .min(1, "observedAt must not be empty -- the kit treats an empty string as invalid, not as an unknown timestamp.")
+    .describe("ISO-8601 timestamp of this reading. Compared as a string against decidedAt -- use one consistent format. Must be non-empty."),
   exposed: z
     .boolean()
     .optional()
@@ -155,19 +159,25 @@ export function registerAdviceLedgerGradeTool(server: McpServer): void {
       description:
         "Grades one recommendation-and-decision pair against a before/after observation log. Compares a pre-" +
         "decision BASELINE window to a post-decision, exposure-aligned RESULT window on the same subjectId + " +
-        "checkKey, and returns 'holding' (later evidence is consistent with the decision having been right), " +
-        "'not-holding' (the problem came back at the refute bar), or 'refused' (the evidence didn't clear a " +
-        "floor -- see refusalCodes for exactly which one, never a vague 'unproven'). The verdict grades the " +
-        "DECISION, not just whether advice was taken: a DISMISSED recommendation whose problem later " +
-        "surfaced also grades 'not-holding', because the evidence sided with the advice either way. Two " +
-        "things this tool refuses to let slide: (1) 'nothing has gone wrong since' only counts as a result if " +
-        "the baseline shows the problem existed before -- otherwise it's 'baseline_lacks_negative_signal'; " +
-        "(2) only observations where the advice could actually have applied (exposed === true) can create or " +
-        "reverse the headline verdict -- everything else is reported separately as `secondary`, labelled " +
-        "non-headline, and can never become it. Use this to close the loop on any recommender/advisor system " +
-        "that logs recommendations, human accept/reject calls, and later outcomes, instead of letting advice " +
-        "quality go unmeasured forever. For grading a whole population of engine-vs-human calls at once " +
-        "(rather than one decision against its own before/after window), use compute_divergence instead.",
+        "checkKey, and returns 'holding' (the exposed post-decision window stayed under `refuteThreshold` bad " +
+        "observations), 'not-holding' (the exposed post-decision window hit `refuteThreshold` bad " +
+        "observations), or " +
+        "'refused' (the evidence didn't clear a floor -- see refusalCodes for exactly which one, never a " +
+        "vague 'unproven'). OPEN DESIGN QUESTION, read before trusting a 'holding' verdict: this is a " +
+        "THRESHOLD COUNT, not a rate comparison -- 'holding' can come back even while the bad rate rose (1 " +
+        "bad of 10 before, 1 bad of 3 since is still 'holding' at the default bar). Always show `badRateDelta` " +
+        "and the raw `baseline`/`result` counts next to the verdict, don't quote 'holding' on its own. The " +
+        "verdict grades the DECISION, not just whether advice was taken: a DISMISSED recommendation whose " +
+        "problem later surfaced also grades 'not-holding', because the evidence sided with the advice either " +
+        "way. Two things this tool refuses to let slide: (1) 'nothing has gone wrong since' only counts as a " +
+        "result if the baseline shows the problem existed before -- otherwise it's " +
+        "'baseline_lacks_negative_signal'; (2) only observations where the advice could actually have applied " +
+        "(exposed === true) can create or reverse the headline verdict -- everything else is reported " +
+        "separately as `secondary` (whose own `wouldBeVerdict` can itself be 'refused'), labelled " +
+        "non-headline, and can never become the headline. Use this to close the loop on any recommender/" +
+        "advisor system that logs recommendations, human accept/reject calls, and later outcomes, instead of " +
+        "letting advice quality go unmeasured forever. For grading a whole population of engine-vs-human calls " +
+        "at once (rather than one decision against its own before/after window), use compute_divergence instead.",
       inputSchema: {
         decision: decisionSchema.describe("The human's call on the recommendation."),
         recommendation: recommendationSchema.describe("The advice being graded."),
@@ -250,12 +260,12 @@ const divergenceConfigSchema = z
       .optional()
       .describe(
         "JS source for a pure function `(pair) => string | null` -- the real kit's `groupBy` config. MCP " +
-          "arguments are JSON and cannot carry a function value, so this is accepted as source and built " +
-          "in-process via the Function constructor before calling the unmodified computeDivergence export " +
-          "(same trust model as check_payout_invariance's rankFnSource -- only pass code you wrote or trust). " +
-          "Return null from it to leave a pair out of the per-group breakdown entirely. Omit to use the " +
-          "library's own default, which buckets by each pair's own `group` field -- that covers the common " +
-          "case with no code execution at all.",
+          "arguments are JSON and cannot carry a function value, so when supplied this runs the whole " +
+          "computeDivergence call in a worker thread with a bounded timeout (default 10s, see README) instead " +
+          "of on the main thread (same trust model as check_payout_invariance's rankFnSource -- only pass code " +
+          "you wrote or trust). Return null from it to leave a pair out of the per-group breakdown entirely. " +
+          "Omit to use the library's own default, which buckets by each pair's own `group` field -- that " +
+          "covers the common case with no code execution (or worker) at all.",
       ),
   })
   .optional()
@@ -294,13 +304,14 @@ export function registerAdviceLedgerDivergenceTool(server: McpServer): void {
     async ({ pairs, config }) => {
       try {
         const { groupBySource, ...floors } = config ?? {};
-        const resolvedConfig: DivergenceConfig = { ...floors };
-        if (groupBySource) {
-          resolvedConfig.groupBy = buildFunctionFromSource(groupBySource, "config.groupBySource") as (
-            pair: JudgmentPair,
-          ) => string | null;
-        }
-        const result = computeDivergence(pairs as JudgmentPair[], resolvedConfig);
+        const result = groupBySource
+          ? await runFunctionJob<DivergenceResult>({
+              kind: "divergence-group-by",
+              pairs,
+              floors,
+              groupBySource,
+            })
+          : computeDivergence(pairs as JudgmentPair[], floors as DivergenceConfig);
         const groupsNote =
           result.groups.length > 0
             ? ` Per-group breakdown also computed for ${result.groups.length} group(s).`
