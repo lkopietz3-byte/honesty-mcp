@@ -185,6 +185,42 @@ describe("check_payout_invariance (payout-invariance-kit)", () => {
     expect(data.length).toBe(1);
     expect(data[0].file).toBe("src/rank.ts");
   });
+
+  it("runtime mode refuses an empty mutations array with a clear error, not a vacuous pass", async () => {
+    const result = (await client.callTool({
+      name: "check_payout_invariance",
+      arguments: { mode: "runtime", rankFnSource: "(x) => x", baseInput: [], mutations: [] },
+    })) as { isError?: boolean; content?: { text?: string }[] };
+    expect(result.isError).toBe(true);
+    expect(result.content?.[0]?.text).toMatch(/non-empty `mutations`/);
+  });
+
+  it("runtime mode refuses a missing rankFnSource with a clear error", async () => {
+    const result = (await client.callTool({
+      name: "check_payout_invariance",
+      arguments: { mode: "runtime", baseInput: [], mutations: [{ name: "n", mutateSource: "(x) => x" }] },
+    })) as { isError?: boolean; content?: { text?: string }[] };
+    expect(result.isError).toBe(true);
+    expect(result.content?.[0]?.text).toMatch(/requires `rankFnSource`/);
+  });
+
+  it("static-imports mode refuses an empty payoutIdentifiers array with a clear error", async () => {
+    const result = (await client.callTool({
+      name: "check_payout_invariance",
+      arguments: { mode: "static-imports", files: { "a.ts": "" }, payoutIdentifiers: [] },
+    })) as { isError?: boolean; content?: { text?: string }[] };
+    expect(result.isError).toBe(true);
+    expect(result.content?.[0]?.text).toMatch(/non-empty `payoutIdentifiers`/);
+  });
+
+  it("static-imports mode refuses a missing files argument with a clear error", async () => {
+    const result = (await client.callTool({
+      name: "check_payout_invariance",
+      arguments: { mode: "static-imports", payoutIdentifiers: ["payout"] },
+    })) as { isError?: boolean; content?: { text?: string }[] };
+    expect(result.isError).toBe(true);
+    expect(result.content?.[0]?.text).toMatch(/requires `files`/);
+  });
 });
 
 describe("check_provenance_claims (provenance-kit)", () => {
@@ -247,6 +283,40 @@ describe("check_mutation_invariance (mutation-invariance-kit)", () => {
     expect(data.passed).toBe(false);
     expect(data.failures.length).toBe(1);
     expect(data.failures[0].category).toBe("protected-attribute");
+  });
+
+  it("passes a scoring function that genuinely ignores the mutated field", async () => {
+    const result = await client.callTool({
+      name: "check_mutation_invariance",
+      arguments: {
+        fnSource: "(applicant) => applicant.income > 50000",
+        baseInput: { name: "Emily Carter", income: 80000 },
+        scenarios: [
+          {
+            name: "swap to a different name",
+            mutateSource: "(input) => ({ ...input, name: 'Jamal Washington' })",
+            category: "protected-attribute",
+          },
+        ],
+      },
+    });
+    const data = parseJson(result);
+    expect(data.passed).toBe(true);
+    expect(data.failures.length).toBe(0);
+    expect(data.vacuous.length).toBe(0);
+  });
+
+  it("flags a vacuous scenario (mutate didn't actually change the input) instead of a silent pass", async () => {
+    const result = await client.callTool({
+      name: "check_mutation_invariance",
+      arguments: {
+        fnSource: "(applicant) => applicant.income",
+        baseInput: { name: "Emily Carter", income: 80000 },
+        scenarios: [{ name: "no-op mutation", mutateSource: "(input) => ({ ...input })" }],
+      },
+    });
+    const data = parseJson(result);
+    expect(data.vacuous).toEqual(["no-op mutation"]);
   });
 });
 
@@ -330,6 +400,32 @@ describe("check_claims_registry (claims-registry-kit)", () => {
     expect(data.counts).toEqual({ current: 1, stale: 1, unverified: 1, total: 3 });
     expect(data.unverified[0].id).toBe("none");
     expect(data.stale[0].id).toBe("old");
+  });
+
+  it("accepts maxAgeDays: 0 (a 'must be verified today' policy), not rejected as non-positive", async () => {
+    const result = await client.callTool({
+      name: "check_claims_registry",
+      arguments: {
+        claims: [{ id: "a", text: "We support SSO.", evidenceRef: "docs/sso.md", verifiedAt: "2026-08-02" }],
+        maxAgeDays: 0,
+        now: "2026-08-02T00:00:00.000Z",
+      },
+    });
+    const data = parseJson(result);
+    expect(data.counts.total).toBe(1);
+  });
+
+  it("rejects an unparseable `now` with a clear error instead of an invalid-date report", async () => {
+    const result = (await client.callTool({
+      name: "check_claims_registry",
+      arguments: {
+        claims: [{ id: "a", text: "We support SSO.", evidenceRef: "docs/sso.md", verifiedAt: "2026-08-02" }],
+        maxAgeDays: 90,
+        now: "not-a-real-date",
+      },
+    })) as { isError?: boolean; content?: { text?: string }[] };
+    expect(result.isError).toBe(true);
+    expect(result.content?.[0]?.text).toMatch(/not a valid date/);
   });
 });
 
