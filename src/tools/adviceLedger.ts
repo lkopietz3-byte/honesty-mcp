@@ -145,6 +145,7 @@ const gradeConfigSchema = z
       "DEFAULT_GRADE_CONFIG). Omit entirely to use the library's defaults.",
   );
 
+/** Registers `grade_decision` on `server`. */
 export function registerAdviceLedgerGradeTool(server: McpServer): void {
   server.registerTool(
     "grade_decision",
@@ -263,6 +264,7 @@ const divergenceConfigSchema = z
       "advice-ledger-kit's DEFAULT_DIVERGENCE_CONFIG). Omit entirely to use the library's defaults.",
   );
 
+/** Registers `compute_divergence` on `server`. */
 export function registerAdviceLedgerDivergenceTool(server: McpServer): void {
   server.registerTool(
     "compute_divergence",

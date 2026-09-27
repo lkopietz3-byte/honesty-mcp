@@ -29,6 +29,7 @@ const certaintyPhraseSchema = z.union([
   }),
 ]);
 
+/** Registers `check_provenance_claims` on `server`. */
 export function registerProvenanceTool(server: McpServer): void {
   server.registerTool(
     "check_provenance_claims",

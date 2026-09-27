@@ -35,6 +35,7 @@ const mutationSchema = z.object({
     ),
 });
 
+/** Registers `check_payout_invariance` on `server`. */
 export function registerPayoutInvarianceTool(server: McpServer): void {
   server.registerTool(
     "check_payout_invariance",

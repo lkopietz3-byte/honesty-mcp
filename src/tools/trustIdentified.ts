@@ -55,6 +55,7 @@ const configSchema = z
       "-- omit to use the example config as-is.",
   );
 
+/** Registers `score_trust_identified` on `server`. */
 export function registerTrustIdentifiedTool(server: McpServer): void {
   server.registerTool(
     "score_trust_identified",

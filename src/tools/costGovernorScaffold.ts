@@ -69,6 +69,7 @@ return send200(result.result);
 // adapter instead -- see the kit's README, "Strict capacity reservation".
 `;
 
+/** Registers `scaffold_cost_governor` on `server`. */
 export function registerCostGovernorScaffoldTool(server: McpServer): void {
   server.registerTool(
     "scaffold_cost_governor",

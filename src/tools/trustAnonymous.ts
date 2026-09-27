@@ -65,6 +65,7 @@ const configSchema = z
       "example config as-is.",
   );
 
+/** Registers `assess_anonymous_authenticity` on `server`. */
 export function registerTrustAnonymousTool(server: McpServer): void {
   server.registerTool(
     "assess_anonymous_authenticity",

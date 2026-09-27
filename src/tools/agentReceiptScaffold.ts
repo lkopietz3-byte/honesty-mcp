@@ -50,6 +50,7 @@ if (!receipt.accepted) {
 }
 `;
 
+/** Registers `scaffold_agent_receipts` on `server`. */
 export function registerAgentReceiptScaffoldTool(server: McpServer): void {
   server.registerTool(
     "scaffold_agent_receipts",

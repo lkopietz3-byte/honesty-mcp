@@ -8,6 +8,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { classifyDocument } from "grounding-kit";
 import { errorMessage, errorResult, jsonResult } from "../lib/result.js";
 
+/** Registers `check_grounding` on `server`. */
 export function registerGroundingTool(server: McpServer): void {
   server.registerTool(
     "check_grounding",

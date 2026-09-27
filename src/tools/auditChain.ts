@@ -19,6 +19,7 @@ const chainEntrySchema = z.object({
   entryHash: z.string().describe("SHA-256 hex digest binding this entry (and transitively every prior entry) together."),
 });
 
+/** Registers `append_audit_entry` and `verify_audit_chain` on `server`. */
 export function registerAuditChainTools(server: McpServer): void {
   server.registerTool(
     "append_audit_entry",

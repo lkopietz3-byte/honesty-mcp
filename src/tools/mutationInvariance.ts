@@ -30,6 +30,7 @@ const scenarioSchema = z.object({
     .describe("Informational label for which axis this scenario tests. Purely for grouping/filtering in reports."),
 });
 
+/** Registers `check_mutation_invariance` on `server`. */
 export function registerMutationInvarianceTool(server: McpServer): void {
   server.registerTool(
     "check_mutation_invariance",

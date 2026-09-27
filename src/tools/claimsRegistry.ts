@@ -24,6 +24,7 @@ const claimSchema = z.object({
   verifiedBy: z.string().optional().describe("Who or what last verified this claim (a name, 'automated-test', an agent id)."),
 });
 
+/** Registers `check_claims_registry` on `server`. */
 export function registerClaimsRegistryTool(server: McpServer): void {
   server.registerTool(
     "check_claims_registry",
