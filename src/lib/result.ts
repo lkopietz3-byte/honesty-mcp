@@ -49,10 +49,14 @@ export function errorMessage(err: unknown): string {
 }
 
 // JSON.stringify chokes on Map/Set (rare, but corroboration-kit-style
-// libraries sometimes carry them) -- make the output robust instead of
-// silently dropping data or throwing mid-response.
+// libraries sometimes carry them) and silently renders an Error as "{}"
+// (its message/stack are non-enumerable) -- e.g. cost-governor-kit's
+// ReserveConfirmResult.commitError is typed `unknown` and can be a real
+// Error. Make the output robust instead of silently dropping data or
+// throwing mid-response.
 function jsonReplacer(_key: string, value: unknown): unknown {
   if (value instanceof Map) return Object.fromEntries(value);
   if (value instanceof Set) return [...value];
+  if (value instanceof Error) return { name: value.name, message: value.message };
   return value;
 }

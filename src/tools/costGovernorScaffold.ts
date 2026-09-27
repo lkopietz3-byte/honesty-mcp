@@ -50,6 +50,8 @@ class MyLedger implements UsageLedger {
     // Called ONLY after the guarded call resolves successfully. Make the
     // increment itself atomic in real storage -- but note commitUsage never
     // receives \`limit\`, so this step alone cannot enforce it under concurrency.
+    // If this throws/rejects, withReserveConfirm still returns the successful
+    // call's result (see result.commitError below) -- it does NOT discard it.
     await db.increment(key);
   }
 }
@@ -61,6 +63,11 @@ const result = await withReserveConfirm(
   () => callAnthropic(userId, prompt), // a thrown/rejected call never commits locally --
 );                                     // but a timeout may still have billed the provider; reconcile before retrying.
 if (!result.allowed) return send429("Daily limit reached");
+if (result.commitError) {
+  // The call succeeded but recording its usage failed afterward -- the count
+  // may now be under-recorded. Log it; do not retry the paid call for this.
+  console.error("cost-governor: commitUsage failed after a successful call", result.commitError);
+}
 return send200(result.result);
 
 // Need the limit to actually hold under concurrent requests? withReserveConfirm
@@ -83,8 +90,10 @@ export function registerCostGovernorScaffoldTool(server: McpServer): void {
         "exist as content to hand this tool. Call this to get all three pieces explained (estimated pre-call " +
         "spend check, cache-aware pricing math, advisory successful-call usage counting), an install step, a " +
         "copy-pasteable starter snippet, and (optionally) a live worked example: real checkPreCallCeiling " +
-        "calls (one allowed, one blocked) plus a real withReserveConfirm run against an in-memory demo ledger " +
-        "(one call under the limit, one over). Use this when you're building or reviewing anything that calls " +
+        "calls (one allowed, one blocked), a real withReserveConfirm run against an in-memory demo ledger " +
+        "(one call under the limit, one over, one whose commit fails after a successful call), and a real " +
+        "estimateCostUsd comparison of the default 0.1x cache-read rate against a caller-supplied " +
+        "cacheReadPerMillion override. Use this when you're building or reviewing anything that calls " +
         "a paid AI API and want a pre-call spend estimate plus usage counting that skips a call that threw -- " +
         "NOT a strict concurrent limit and not proof a timed-out call was never billed by the provider (see " +
         "concurrency_and_recovery in the output, and use withCapacityReservation instead if you need a real " +
@@ -119,9 +128,9 @@ export function registerCostGovernorScaffoldTool(server: McpServer): void {
                 "concurrent over-limit paid calls -- it is not a concurrency-safe reservation.",
           },
           threePieces: [
-            "1. pricing.ts / estimateCostUsd -- cache-aware cost math (cache_read, cache_creation_5m, cache_creation_1h priced as separate line items, never collapsed). Cache reads are priced at a fixed 0.1x, which over-estimates models with a lower real cache-read rate.",
+            "1. pricing.ts / estimateCostUsd -- cache-aware cost math (cache_read, cache_creation_5m, cache_creation_1h priced as separate line items, never collapsed). Cache reads are priced at a fixed 0.1x by default, which over-estimates models with a lower real cache-read rate, unless you set ModelRates.cacheReadPerMillion to that model's real per-million cache-read price -- it replaces the 0.1x ratio entirely for that call.",
             "2. preCallCeiling.ts / checkPreCallCeiling -- checks an ESTIMATED next-call cost against caller-supplied spend-so-far and rates before the call (rates always passed in live, never a hardcoded default). It is only as good as the estimate and cannot coordinate concurrent requests.",
-            "3. reserveConfirm.ts / withReserveConfirm -- an ADVISORY check (read-only) before the call, commit only after it resolves successfully, so a call that throws is never committed. Concurrent callers can all pass the read-only check before any of them commits, so this cannot enforce a strict concurrent limit -- and a commit that itself fails discards the successful result even though the paid call happened. For a real reservation, use withCapacityReservation with your own CapacityReservationLedger adapter.",
+            "3. reserveConfirm.ts / withReserveConfirm -- an ADVISORY check (read-only) before the call, commit only after it resolves successfully, so a call that throws is never committed. Concurrent callers can all pass the read-only check before any of them commits, so this cannot enforce a strict concurrent limit. If the commit itself fails after a successful call, the result is NOT discarded -- it returns { allowed: true, result, commitError }, where commitError's presence signals the usage count may be under-recorded for that call. For a real reservation, use withCapacityReservation with your own CapacityReservationLedger adapter.",
           ],
           concurrency_and_recovery:
             "Strict concurrent capacity needs an atomic reservation acquired BEFORE the paid call " +
@@ -150,17 +159,24 @@ export function registerCostGovernorScaffoldTool(server: McpServer): void {
           estimatedNextCallUsage: { inputTokens: 2000, outputTokens: 500 },
           rates,
         });
-        const sampleCostUsd = estimateCostUsd(rates, {
+        const sampleUsage = {
           inputTokens: 10_000,
           outputTokens: 2_000,
           cacheReadTokens: 5_000,
           cacheCreation1hTokens: 1_000,
-        });
+        };
+        const sampleCostUsd = estimateCostUsd(rates, sampleUsage);
+        // Illustrative override: a model whose real cache-read rate is 0.025x of
+        // inputPerMillion (per the kit's own pricing.ts docs), not the 0.1x default.
+        const sampleCostUsdWithCacheReadOverride = estimateCostUsd({ ...rates, cacheReadPerMillion: 0.075 }, sampleUsage);
 
         const demoLedger = makeInMemoryLedger();
         const underLimitRun = await withReserveConfirm(demoLedger, "demo-user:2026-01-01", 2, () => Promise.resolve("call ok"));
         await withReserveConfirm(demoLedger, "demo-user:2026-01-01", 2, () => Promise.resolve("call ok")); // consumes the 2nd slot
         const overLimitRun = await withReserveConfirm(demoLedger, "demo-user:2026-01-01", 2, () => Promise.resolve("should not run"));
+
+        const failingCommitLedger = makeFailingCommitLedger();
+        const commitErrorRun = await withReserveConfirm(failingCommitLedger, "demo-user:2026-01-01", 2, () => Promise.resolve("call ok"));
 
         const worked = {
           preCallCeiling: {
@@ -168,12 +184,18 @@ export function registerCostGovernorScaffoldTool(server: McpServer): void {
             allowedExample: allowedCheck,
             blockedExample: blockedCheck,
           },
-          pricing: { sampleUsage: "10k in / 2k out / 5k cache-read / 1k cache-create-1h", sampleCostUsd },
+          pricing: {
+            sampleUsage: "10k in / 2k out / 5k cache-read / 1k cache-create-1h",
+            sampleCostUsd,
+            sampleCostUsdWithCacheReadOverride,
+            note: "Same usage, cacheReadPerMillion 0.075 instead of the default 0.1x-of-input (0.3): lower total.",
+          },
           reserveConfirm: {
             limit: 2,
             firstCallResult: underLimitRun,
             secondCallConsumedTheLimit: true,
             thirdCallResult: overLimitRun,
+            commitFailsAfterSuccessfulCallResult: commitErrorRun,
           },
         };
 
@@ -186,6 +208,18 @@ export function registerCostGovernorScaffoldTool(server: McpServer): void {
       }
     },
   );
+}
+
+/** A ledger whose commitUsage always rejects, to demonstrate withReserveConfirm's commitError result. */
+function makeFailingCommitLedger(): UsageLedger {
+  return {
+    checkUnderLimit() {
+      return Promise.resolve(true);
+    },
+    commitUsage() {
+      return Promise.reject(new Error("demo: commitUsage always fails in this ledger"));
+    },
+  };
 }
 
 function makeInMemoryLedger(): UsageLedger {

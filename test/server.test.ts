@@ -649,5 +649,14 @@ describe("scaffold tools (agent-receipt-kit, cost-governor-kit)", () => {
     expect(data.workedExample.preCallCeiling.blockedExample.allowed).toBe(false);
     expect(data.workedExample.reserveConfirm.firstCallResult.allowed).toBe(true);
     expect(data.workedExample.reserveConfirm.thirdCallResult.allowed).toBe(false);
+    // A commit that fails after a successful call keeps the result instead of discarding it.
+    const commitFailure = data.workedExample.reserveConfirm.commitFailsAfterSuccessfulCallResult;
+    expect(commitFailure.allowed).toBe(true);
+    expect(commitFailure.result).toBe("call ok");
+    expect(commitFailure.commitError.message).toMatch(/commitUsage always fails/);
+    // A caller-supplied cacheReadPerMillion replaces the fixed 0.1x ratio for that call.
+    const sampleCostUsd: number = data.workedExample.pricing.sampleCostUsd;
+    const sampleCostUsdWithCacheReadOverride: number = data.workedExample.pricing.sampleCostUsdWithCacheReadOverride;
+    expect(sampleCostUsdWithCacheReadOverride).toBeLessThan(sampleCostUsd);
   });
 });
