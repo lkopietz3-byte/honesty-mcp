@@ -51,7 +51,7 @@ export function registerClaimsRegistryTool(server: McpServer): void {
         now: z.string().optional().describe("ISO 'now' timestamp to evaluate against. Defaults to the current time."),
       },
     },
-    async ({ claims, maxAgeDays, now }) => {
+    ({ claims, maxAgeDays, now }) => {
       try {
         const nowDate = now ? new Date(now) : new Date();
         if (Number.isNaN(nowDate.getTime())) {

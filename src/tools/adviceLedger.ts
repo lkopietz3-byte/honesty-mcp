@@ -28,12 +28,6 @@ import {
   describeGrade,
   computeDivergence,
   describeDivergence,
-  type Decision,
-  type Recommendation,
-  type Observation,
-  type GradeConfig,
-  type JudgmentPair,
-  type DivergenceConfig,
   type DivergenceResult,
 } from "advice-ledger-kit";
 import { runFunctionJob } from "../lib/runFunctionJob.js";
@@ -190,14 +184,9 @@ export function registerAdviceLedgerGradeTool(server: McpServer): void {
         config: gradeConfigSchema,
       },
     },
-    async ({ decision, recommendation, observations, config }) => {
+    ({ decision, recommendation, observations, config }) => {
       try {
-        const grade = gradeDecision(
-          decision as Decision,
-          recommendation as Recommendation,
-          observations as Observation[],
-          (config ?? {}) as GradeConfig,
-        );
+        const grade = gradeDecision(decision, recommendation, observations, config ?? {});
         return jsonResult(describeGrade(grade), grade);
       } catch (err) {
         return errorResult(errorMessage(err));
@@ -311,7 +300,7 @@ export function registerAdviceLedgerDivergenceTool(server: McpServer): void {
               floors,
               groupBySource,
             })
-          : computeDivergence(pairs as JudgmentPair[], floors as DivergenceConfig);
+          : computeDivergence(pairs, floors);
         const groupsNote =
           result.groups.length > 0
             ? ` Per-group breakdown also computed for ${result.groups.length} group(s).`

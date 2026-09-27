@@ -157,9 +157,9 @@ export function registerCostGovernorScaffoldTool(server: McpServer): void {
         });
 
         const demoLedger = makeInMemoryLedger();
-        const underLimitRun = await withReserveConfirm(demoLedger, "demo-user:2026-01-01", 2, async () => "call ok");
-        await withReserveConfirm(demoLedger, "demo-user:2026-01-01", 2, async () => "call ok"); // consumes the 2nd slot
-        const overLimitRun = await withReserveConfirm(demoLedger, "demo-user:2026-01-01", 2, async () => "should not run");
+        const underLimitRun = await withReserveConfirm(demoLedger, "demo-user:2026-01-01", 2, () => Promise.resolve("call ok"));
+        await withReserveConfirm(demoLedger, "demo-user:2026-01-01", 2, () => Promise.resolve("call ok")); // consumes the 2nd slot
+        const overLimitRun = await withReserveConfirm(demoLedger, "demo-user:2026-01-01", 2, () => Promise.resolve("should not run"));
 
         const worked = {
           preCallCeiling: {
@@ -190,11 +190,12 @@ export function registerCostGovernorScaffoldTool(server: McpServer): void {
 function makeInMemoryLedger(): UsageLedger {
   const counts = new Map<string, number>();
   return {
-    async checkUnderLimit(key, limit) {
-      return (counts.get(key) ?? 0) < limit;
+    checkUnderLimit(key, limit) {
+      return Promise.resolve((counts.get(key) ?? 0) < limit);
     },
-    async commitUsage(key) {
+    commitUsage(key) {
       counts.set(key, (counts.get(key) ?? 0) + 1);
+      return Promise.resolve();
     },
   };
 }

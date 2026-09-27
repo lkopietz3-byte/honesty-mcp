@@ -40,7 +40,13 @@ async function main(): Promise<void> {
   });
   const isError = (result as { isError?: boolean }).isError ?? false;
   const jsonBlock = contentBlocks(result)[1];
-  const parsed = jsonBlock && jsonBlock.type === "text" && jsonBlock.text ? JSON.parse(jsonBlock.text) : null;
+  // Minimal shape of grounding-kit's DocumentClassification -- just the two
+  // fields this smoke check reads. The full type is tested in grounding-kit's
+  // own suite; this script only needs enough to confirm the wiring works.
+  const parsed: { isClean?: boolean; counts?: { invalid?: number } } | null =
+    jsonBlock && jsonBlock.type === "text" && jsonBlock.text
+      ? (JSON.parse(jsonBlock.text) as { isClean?: boolean; counts?: { invalid?: number } })
+      : null;
   console.log(`  isError: ${isError}`);
   console.log(`  isClean: ${parsed?.isClean}, invalid: ${parsed?.counts?.invalid}`);
   if (isError || parsed?.isClean !== false || parsed?.counts?.invalid !== 1) {

@@ -74,7 +74,7 @@ export function registerAgentReceiptScaffoldTool(server: McpServer): void {
           .describe("Also run a live accepted/rejected example against the real issuePacket/verifyReceipt, not just show a snippet."),
       },
     },
-    async ({ includeWorkedExample }) => {
+    ({ includeWorkedExample }) => {
       try {
         const guidance = {
           kit: "agent-receipt-kit",

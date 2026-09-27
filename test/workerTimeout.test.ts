@@ -53,7 +53,7 @@ describe("Section A -- the pre-fix pattern (direct, synchronous, in-process) has
       const rankFn = buildFunctionFromSource(
         "(input) => { const start = Date.now(); while (Date.now() - start < 3000) {} return input; }",
         "rankFnSource",
-      ) as (input: unknown) => unknown;
+      );
 
       const start = Date.now();
       assertPayoutInvariance(rankFn, [1, 2, 3], [{ name: "noop", mutate: (i: unknown) => (i as number[]).slice() }]);
@@ -86,15 +86,6 @@ describe("Section B -- the shipped fix enforces a real timeout", () => {
     if (originalEnv === undefined) delete process.env[WORKER_TIMEOUT_ENV_VAR];
     else process.env[WORKER_TIMEOUT_ENV_VAR] = originalEnv;
   });
-
-  function parseJson(result: unknown): any {
-    const r = result as { isError?: boolean; content?: { type: string; text?: string }[] };
-    const block = r.content?.[1];
-    if (!block || block.type !== "text" || typeof block.text !== "string") {
-      throw new Error("expected a second (JSON) text content block");
-    }
-    return JSON.parse(block.text);
-  }
 
   it(
     "check_payout_invariance (runtime mode) with an infinite loop errors out quickly instead of hanging",

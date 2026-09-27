@@ -67,7 +67,7 @@ export function registerCorroborationTool(server: McpServer): void {
         ]),
       },
     },
-    async ({ signals, coverage }) => {
+    ({ signals, coverage }) => {
       try {
         const resolvedCoverage: Coverage =
           typeof coverage === "string"

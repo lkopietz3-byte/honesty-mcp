@@ -33,6 +33,28 @@ export default defineConfig(
     },
   },
   {
+    // Every test in this repo drives a real MCP Client/Server pair and reads
+    // back a CallToolResult, whose `content` is SDK-typed as loosely-shaped
+    // JSON-RPC payload blocks. parseJson() in server.test.ts (and its local
+    // equivalent in workerTimeout.test.ts) parses the second content block's
+    // text as the wrapped kit's JSON result. Each kit already fully types
+    // and tests its own return shape in its own suite; re-declaring ~14
+    // different result interfaces a second time here, purely to satisfy the
+    // type-checker on values these tests already assert the real shape of
+    // field-by-field, would be duplication with no added safety -- the
+    // assertions themselves (toBe/toEqual on specific fields) are what
+    // verifies correctness, not the static type of the intermediate value.
+    name: 'kit/dynamic-json-rpc-test-payloads',
+    files: ['test/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+    },
+  },
+  {
     name: 'kit/node-esm-scripts',
     files: ['scripts/**/*.mjs', 'examples/**/*.mjs', 'eslint.config.mjs'],
     extends: [js.configs.recommended],

@@ -30,13 +30,15 @@ export function buildFunctionFromSource(
 ): (...args: unknown[]) => unknown {
   let built: unknown;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-new-func
+    // This IS the eval-equivalent this function exists to wrap; `Function`'s call signature is untyped by design.
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval, @typescript-eslint/no-unsafe-call
     built = new Function(`"use strict"; return (\n${source}\n);`)();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(
       `Could not evaluate ${label} as JavaScript: ${message}. Expected source for a single ` +
         `function expression, e.g. "(input) => output" or "function (input) { return output; }".`,
+      { cause: err },
     );
   }
   if (typeof built !== "function") {

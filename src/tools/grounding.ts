@@ -49,7 +49,7 @@ export function registerGroundingTool(server: McpServer): void {
           ),
       },
     },
-    async ({ text, evidence }) => {
+    ({ text, evidence }) => {
       try {
         const result = classifyDocument(text, evidence);
         const summary = result.isClean

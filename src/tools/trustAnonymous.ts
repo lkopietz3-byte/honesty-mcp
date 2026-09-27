@@ -87,7 +87,7 @@ export function registerTrustAnonymousTool(server: McpServer): void {
         now: z.string().describe("ISO 'now' timestamp recency decay is computed against. Pass a fixed value for determinism."),
       },
     },
-    async ({ signals, config, now }) => {
+    ({ signals, config, now }) => {
       try {
         const resolvedConfig = anonymous.resolveAnonymousConfig(config);
         const result = anonymous.assessAuthenticity(signals, resolvedConfig, { now });

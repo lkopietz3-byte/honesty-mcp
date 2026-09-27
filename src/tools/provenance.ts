@@ -72,7 +72,7 @@ export function registerProvenanceTool(server: McpServer): void {
           .describe("Characters before a phrase match to scan for a negation word ('not', 'without', ...). Default 40."),
       },
     },
-    async ({ claims, certaintyPhrases, certaintyRequiresTier, requireSourceRefForTiers, caseSensitive, negationWindow }) => {
+    ({ claims, certaintyPhrases, certaintyRequiresTier, requireSourceRefForTiers, caseSensitive, negationWindow }) => {
       try {
         const options: ValidateClaimsOptions = {
           certaintyPhrases,
