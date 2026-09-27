@@ -1,14 +1,8 @@
 # honesty-mcp
 
-An MCP (Model Context Protocol) server that exposes eleven already-built,
-zero-runtime-dependency "honesty SDK" TypeScript libraries as tools any
-MCP-compatible coding agent (Claude Code, Claude Desktop, or any other MCP
-client) can call while building or auditing a product — grounded-citation
-checking, evidence corroboration grading, payout/mutation-invariance
-proofs, trust/authenticity scoring, provenance-claim validation, a claims
-registry, a tamper-evident audit chain, and recommendation/decision grading
-plus engine-vs-human divergence, plus scaffolding for two runtime-library
-kits that don't fit the "check this content" shape.
+Honesty MCP gives compatible agents one server for checking citations, claim evidence, provenance, audit records, and decision outputs. It wraps eleven sibling TypeScript kits; those kits must be checked out alongside it because they are not published to npm.
+
+Its tools also cover payout and mutation invariance, review-signal scoring, recommendation outcomes, and agent receipts.
 
 This server is thin by design: every tool is a Zod input schema plus a
 handler that imports and calls the real, unmodified export from the wrapped
