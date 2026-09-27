@@ -57,12 +57,22 @@ export function registerAuditChainTools(server: McpServer): void {
       description:
         "Independently re-verifies a hash chain from genesis: recomputes every entry's hash and confirms " +
         "each entry's prevHash matches the preceding entry's entryHash. Detects a mutated payload (stored " +
-        "entryHash no longer matches recomputed hash), a severed link or spliced-out middle entry (prevHash " +
-        "mismatch), and -- if you pass `expectedMinLength` -- entries deleted from the END of the chain " +
-        "(a tail deletion leaves no broken pointer for the walk to find on its own). Proves the chain is " +
-        "internally consistent and unaltered since it was hashed; it does NOT prove nobody with write access " +
-        "ever rewrote the whole chain from genesis (tamper-evident, not tamper-proof). Use this to audit a " +
-        "chain you did not produce yourself before trusting it.",
+        "entryHash no longer matches recomputed hash) and a severed link or spliced-out middle entry (prevHash " +
+        "mismatch) with no options at all. Two DIFFERENT truncation attacks need two DIFFERENT options, and " +
+        "neither is on by default: (1) entries deleted from the end and NOT replaced -- pass " +
+        "`expectedMinLength` to catch a chain that's simply shorter than it should be (a tail deletion alone " +
+        "leaves no broken pointer for the walk to find); this does NOT catch truncate-and-re-append (deleting " +
+        "tail entries and then appending new, self-consistent ones to reach the same length again -- " +
+        "`expectedMinLength` sees the 'right' length and passes). (2) to catch truncate-and-re-append, pass " +
+        "`anchor`: an `{ index, entryHash }` checkpoint you saved earlier from a source the chain's writer " +
+        "cannot edit (your own log, a separate append-only store). The chain is invalid unless the entry at " +
+        "`anchor.index` has exactly that `entryHash` -- this also catches a full rewrite from genesis, but " +
+        "entries after the anchor are only checked for internal consistency, not against anything external. " +
+        "Passing neither option means a truncate-and-re-append (or a full rewrite from genesis) can pass as " +
+        "'valid'. Proves the chain is internally consistent and unaltered since it was hashed (and, with " +
+        "`anchor`, unaltered up to the anchor point); it does NOT prove nobody with write access ever rewrote " +
+        "the whole chain from genesis when no anchor is supplied (tamper-evident, not tamper-proof). Use this " +
+        "to audit a chain you did not produce yourself before trusting it.",
       inputSchema: {
         chain: z.array(chainEntrySchema).describe("The chain to verify, exactly as stored/received."),
         expectedMinLength: z
@@ -70,16 +80,34 @@ export function registerAuditChainTools(server: McpServer): void {
           .int()
           .nonnegative()
           .optional()
-          .describe("If you know how long the chain should be, pass it to also catch a tail truncation."),
+          .describe(
+            "If you know how long the chain should be, pass it to catch entries deleted from the end and " +
+              "NOT replaced. Does NOT catch truncate-and-re-append (see `anchor`) -- a chain shortened and " +
+              "then extended back to this length with new entries passes this check.",
+          ),
+        anchor: z
+          .object({
+            index: z.number().int().nonnegative().describe("Position of the anchored entry."),
+            entryHash: z.string().min(1).describe("The anchored entry's entryHash, saved from a source the chain's writer cannot edit."),
+          })
+          .optional()
+          .describe(
+            "A checkpoint obtained earlier from somewhere the chain's writer cannot change (your own log, a " +
+              "separate append-only store) -- e.g. `{ index: chain.length - 1, entryHash: chain[chain.length - 1].entryHash }` " +
+              "saved right after you last trusted this chain. The chain is invalid unless it has an entry at " +
+              "`anchor.index` with exactly this entryHash. This is what actually catches truncate-and-re-append " +
+              "or a full rewrite from genesis -- `expectedMinLength` alone does not. Entries after the anchor " +
+              "are only checked for internal consistency, not against anything external.",
+          ),
       },
     },
-    async ({ chain, expectedMinLength }) => {
+    async ({ chain, expectedMinLength, anchor }) => {
       try {
-        const result = await verifyChain(
-          chain as ChainEntry[],
-          undefined,
-          expectedMinLength !== undefined ? { expectedMinLength } : undefined,
-        );
+        const options =
+          expectedMinLength !== undefined || anchor !== undefined
+            ? { ...(expectedMinLength !== undefined ? { expectedMinLength } : {}), ...(anchor !== undefined ? { anchor } : {}) }
+            : undefined;
+        const result = await verifyChain(chain as ChainEntry[], undefined, options);
         const summary = result.valid
           ? `VALID: all ${chain.length} entr${chain.length === 1 ? "y" : "ies"} verified.`
           : `INVALID: ${result.reason}`;

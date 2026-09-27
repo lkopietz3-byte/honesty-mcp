@@ -41,7 +41,13 @@ export function registerClaimsRegistryTool(server: McpServer): void {
         "thing it points to still actually supports the claim's text -- pair with check_grounding for that.",
       inputSchema: {
         claims: z.array(claimSchema).min(1).describe("The claims to evaluate."),
-        maxAgeDays: z.number().positive().describe("Staleness policy: evidence older than this many days is flagged stale."),
+        maxAgeDays: z
+          .number()
+          .nonnegative()
+          .describe(
+            "Staleness policy: evidence older than this many days is flagged stale. 0 is valid (every claim " +
+              "must have been verified today or it's stale) -- the kit requires a finite number >= 0.",
+          ),
         now: z.string().optional().describe("ISO 'now' timestamp to evaluate against. Defaults to the current time."),
       },
     },

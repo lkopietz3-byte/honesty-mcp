@@ -358,6 +358,51 @@ describe("append_audit_entry / verify_audit_chain (audit-chain-kit)", () => {
     expect(invalidCheck.valid).toBe(false);
     expect(invalidCheck.brokenAtIndex).toBe(0);
   });
+
+  it("expectedMinLength alone does not catch truncate-and-re-append, but anchor does", async () => {
+    // Build a genuine 2-entry chain and save an anchor to entry 0 -- a
+    // checkpoint from "somewhere the writer cannot edit" in the real world.
+    const first = parseJson(
+      await client.callTool({ name: "append_audit_entry", arguments: { chain: [], payload: { event: "created" } } }),
+    );
+    const genuineSecond = parseJson(
+      await client.callTool({
+        name: "append_audit_entry",
+        arguments: { chain: first.chain, payload: { event: "approved" } },
+      }),
+    );
+    const anchor = { index: 0, entryHash: first.chain[0].entryHash };
+
+    // Attack: delete entry 0 and re-append a FORGED entry, then re-append a
+    // new entry 1 on top of it, so the chain is self-consistent and back to
+    // length 2 -- same length, different history.
+    const forgedFirst = parseJson(
+      await client.callTool({ name: "append_audit_entry", arguments: { chain: [], payload: { event: "FORGED" } } }),
+    );
+    const relinkedSecond = parseJson(
+      await client.callTool({
+        name: "append_audit_entry",
+        arguments: { chain: forgedFirst.chain, payload: genuineSecond.chain[1].payload },
+      }),
+    );
+
+    const withoutAnchor = parseJson(
+      await client.callTool({
+        name: "verify_audit_chain",
+        arguments: { chain: relinkedSecond.chain, expectedMinLength: 2 },
+      }),
+    );
+    expect(withoutAnchor.valid).toBe(true); // the false negative expectedMinLength's own docs warn about
+
+    const withAnchor = parseJson(
+      await client.callTool({
+        name: "verify_audit_chain",
+        arguments: { chain: relinkedSecond.chain, anchor },
+      }),
+    );
+    expect(withAnchor.valid).toBe(false);
+    expect(withAnchor.brokenAtIndex).toBe(0);
+  });
 });
 
 describe("grade_decision (advice-ledger-kit)", () => {

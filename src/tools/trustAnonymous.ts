@@ -69,14 +69,17 @@ export function registerTrustAnonymousTool(server: McpServer): void {
   server.registerTool(
     "assess_anonymous_authenticity",
     {
-      title: "Assess authenticity of unattributed signals",
+      title: "Score how organic unattributed signals look",
       description:
-        "Assesses whether a corpus of UNATTRIBUTED, scraped sentiment signals (crawled mentions, imported " +
-        "reviews with no verifiable identity, aggregator feeds) looks like real, independent sentiment or " +
-        "planted/astroturfed buzz. Scores a positive composite of consensus/diversity/volume/recency, then " +
-        "subtracts a penalty when the evidence looks manipulated: concentrated in a single source, or " +
-        "suspiciously uniform (near-maximal sentiment with near-zero variance -- the fingerprint of copy-" +
-        "pasted or purchased praise). Use this for reviews/mentions/buzz with no identity behind them. For " +
+        "Scores how organic a corpus of UNATTRIBUTED, scraped sentiment signals (crawled mentions, imported " +
+        "reviews with no verifiable identity, aggregator feeds) looks, weighing a positive composite of " +
+        "consensus/diversity/volume/recency against a heuristic penalty for two specific, cheap manipulation " +
+        "patterns: evidence concentrated in a single source, and suspiciously uniform sentiment (near-maximal " +
+        "with near-zero variance -- the fingerprint of copy-pasted or purchased praise). This is NOT a fraud " +
+        "or astroturf detector: it cannot show that sentiment is fabricated or that any reviewer is fake, and " +
+        "a campaign that varies its wording/sentiment and spreads across several sources isn't caught by " +
+        "these two checks. Treat a low score as 'looks statistically unusual in a specific way worth a human " +
+        "look', not as a fraud finding. Use this for reviews/mentions/buzz with no identity behind them. For " +
         "signals from known, identified contributors, use score_trust_identified instead.",
       inputSchema: {
         signals: z.array(signalSchema).describe("The unattributed signals to assess. May be empty."),
