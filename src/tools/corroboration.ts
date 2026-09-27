@@ -28,6 +28,7 @@ const signalSchema = z.object({
   detail: z.string().describe("Free-form, human-readable explanation of what this signal found."),
 });
 
+/** Registers `corroborate_evidence` on `server`. */
 export function registerCorroborationTool(server: McpServer): void {
   server.registerTool(
     "corroborate_evidence",
@@ -67,7 +68,7 @@ export function registerCorroborationTool(server: McpServer): void {
         ]),
       },
     },
-    async ({ signals, coverage }) => {
+    ({ signals, coverage }) => {
       try {
         const resolvedCoverage: Coverage =
           typeof coverage === "string"

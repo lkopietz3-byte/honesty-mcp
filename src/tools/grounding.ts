@@ -8,6 +8,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { classifyDocument } from "grounding-kit";
 import { errorMessage, errorResult, jsonResult } from "../lib/result.js";
 
+/** Registers `check_grounding` on `server`. */
 export function registerGroundingTool(server: McpServer): void {
   server.registerTool(
     "check_grounding",
@@ -18,11 +19,15 @@ export function registerGroundingTool(server: McpServer): void {
         "classifies each one against `evidence`: 'grounded' (cites a marker whose evidence plausibly " +
         "supports it), 'placeholder' (an honest 'TBD'/unknown gap, no fake citation), 'ungrounded' (a claim " +
         "with no citation at all), or 'invalid' (cites a marker id that is missing from `evidence`, or whose " +
-        "evidence doesn't actually support the sentence -- i.e. a forged or hallucinated citation; this " +
-        "outranks every other status). Use this before shipping any AI-written report, summary, or answer " +
-        "that cites sources, to catch a model inventing or misattributing a citation. Treat any 'invalid' " +
-        "sentence as a hard stop; treat 'ungrounded' sentences as claims that should probably cite something " +
-        "but currently don't.",
+        "evidence doesn't plausibly support the sentence under the default matcher -- i.e. a forged or " +
+        "hallucinated citation; this outranks every other status). This is a mechanical/structural check, not " +
+        "a truth checker: the default support check is naive substring/word-overlap matching, not semantic " +
+        "entailment -- it can pass a coincidental word match and can fail a genuine paraphrase, and it cannot " +
+        "verify that the evidence itself is true. Use this before shipping any AI-written report, summary, or " +
+        "answer that cites sources, to catch a model inventing or misattributing a citation. Treat any " +
+        "'invalid' sentence as a hard stop; treat 'ungrounded' sentences as claims that should probably cite " +
+        "something but currently don't. For higher-stakes content, use grounding-kit directly with a custom " +
+        "`supports()` function (embedding-similarity or NLI-based) instead of the default matcher.",
       inputSchema: {
         text: z
           .string()
@@ -45,7 +50,7 @@ export function registerGroundingTool(server: McpServer): void {
           ),
       },
     },
-    async ({ text, evidence }) => {
+    ({ text, evidence }) => {
       try {
         const result = classifyDocument(text, evidence);
         const summary = result.isClean

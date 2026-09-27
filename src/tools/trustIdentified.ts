@@ -55,6 +55,7 @@ const configSchema = z
       "-- omit to use the example config as-is.",
   );
 
+/** Registers `score_trust_identified` on `server`. */
 export function registerTrustIdentifiedTool(server: McpServer): void {
   server.registerTool(
     "score_trust_identified",
@@ -79,7 +80,7 @@ export function registerTrustIdentifiedTool(server: McpServer): void {
           .describe("Shrinkage strength: a named preset, or a raw phantom-prior-signal count. Defaults to 'balanced'."),
       },
     },
-    async ({ signals, config, asOf, prior, dial }) => {
+    ({ signals, config, asOf, prior, dial }) => {
       try {
         const resolvedConfig = identified.resolveIdentifiedConfig(config);
         const result = identified.scoreEntity(signals, resolvedConfig, { asOf, prior, dial });

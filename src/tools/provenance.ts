@@ -29,6 +29,7 @@ const certaintyPhraseSchema = z.union([
   }),
 ]);
 
+/** Registers `check_provenance_claims` on `server`. */
 export function registerProvenanceTool(server: McpServer): void {
   server.registerTool(
     "check_provenance_claims",
@@ -40,8 +41,12 @@ export function registerProvenanceTool(server: McpServer): void {
         "appropriate provenance tier, plus tiers that require a sourceRef but don't have one, and claims " +
         "carrying an unrecognized tier. This is the exact pattern that caught ~150 false '(verified)' labels " +
         "on a live site after they had already shipped -- run it on any copy, marketing page, or AI-drafted " +
-        "content that makes factual-sounding claims before it ships, not after. An empty result means every " +
-        "claim's certainty language is backed by its tier.",
+        "content that makes factual-sounding claims before it ships, not after. The default phrase list is a " +
+        "starting point drawn from that one incident, not a taxonomy -- it will miss phrases it doesn't know " +
+        "about (e.g. 'clinically proven', 'third-party tested'); extend `certaintyPhrases` for your domain. " +
+        "Negation detection is a fixed character window before a match, not a parser, so it can miss a " +
+        "negation in an earlier clause or over-suppress one further away. An empty result means every claim's " +
+        "certainty language (that this tool's phrase list and negation window caught) is backed by its tier.",
       inputSchema: {
         claims: z.array(claimSchema).min(1).describe("The claims to check."),
         certaintyPhrases: z
@@ -68,7 +73,7 @@ export function registerProvenanceTool(server: McpServer): void {
           .describe("Characters before a phrase match to scan for a negation word ('not', 'without', ...). Default 40."),
       },
     },
-    async ({ claims, certaintyPhrases, certaintyRequiresTier, requireSourceRefForTiers, caseSensitive, negationWindow }) => {
+    ({ claims, certaintyPhrases, certaintyRequiresTier, requireSourceRefForTiers, caseSensitive, negationWindow }) => {
       try {
         const options: ValidateClaimsOptions = {
           certaintyPhrases,

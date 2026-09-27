@@ -185,6 +185,42 @@ describe("check_payout_invariance (payout-invariance-kit)", () => {
     expect(data.length).toBe(1);
     expect(data[0].file).toBe("src/rank.ts");
   });
+
+  it("runtime mode refuses an empty mutations array with a clear error, not a vacuous pass", async () => {
+    const result = (await client.callTool({
+      name: "check_payout_invariance",
+      arguments: { mode: "runtime", rankFnSource: "(x) => x", baseInput: [], mutations: [] },
+    })) as { isError?: boolean; content?: { text?: string }[] };
+    expect(result.isError).toBe(true);
+    expect(result.content?.[0]?.text).toMatch(/non-empty `mutations`/);
+  });
+
+  it("runtime mode refuses a missing rankFnSource with a clear error", async () => {
+    const result = (await client.callTool({
+      name: "check_payout_invariance",
+      arguments: { mode: "runtime", baseInput: [], mutations: [{ name: "n", mutateSource: "(x) => x" }] },
+    })) as { isError?: boolean; content?: { text?: string }[] };
+    expect(result.isError).toBe(true);
+    expect(result.content?.[0]?.text).toMatch(/requires `rankFnSource`/);
+  });
+
+  it("static-imports mode refuses an empty payoutIdentifiers array with a clear error", async () => {
+    const result = (await client.callTool({
+      name: "check_payout_invariance",
+      arguments: { mode: "static-imports", files: { "a.ts": "" }, payoutIdentifiers: [] },
+    })) as { isError?: boolean; content?: { text?: string }[] };
+    expect(result.isError).toBe(true);
+    expect(result.content?.[0]?.text).toMatch(/non-empty `payoutIdentifiers`/);
+  });
+
+  it("static-imports mode refuses a missing files argument with a clear error", async () => {
+    const result = (await client.callTool({
+      name: "check_payout_invariance",
+      arguments: { mode: "static-imports", payoutIdentifiers: ["payout"] },
+    })) as { isError?: boolean; content?: { text?: string }[] };
+    expect(result.isError).toBe(true);
+    expect(result.content?.[0]?.text).toMatch(/requires `files`/);
+  });
 });
 
 describe("check_provenance_claims (provenance-kit)", () => {
@@ -247,6 +283,40 @@ describe("check_mutation_invariance (mutation-invariance-kit)", () => {
     expect(data.passed).toBe(false);
     expect(data.failures.length).toBe(1);
     expect(data.failures[0].category).toBe("protected-attribute");
+  });
+
+  it("passes a scoring function that genuinely ignores the mutated field", async () => {
+    const result = await client.callTool({
+      name: "check_mutation_invariance",
+      arguments: {
+        fnSource: "(applicant) => applicant.income > 50000",
+        baseInput: { name: "Emily Carter", income: 80000 },
+        scenarios: [
+          {
+            name: "swap to a different name",
+            mutateSource: "(input) => ({ ...input, name: 'Jamal Washington' })",
+            category: "protected-attribute",
+          },
+        ],
+      },
+    });
+    const data = parseJson(result);
+    expect(data.passed).toBe(true);
+    expect(data.failures.length).toBe(0);
+    expect(data.vacuous.length).toBe(0);
+  });
+
+  it("flags a vacuous scenario (mutate didn't actually change the input) instead of a silent pass", async () => {
+    const result = await client.callTool({
+      name: "check_mutation_invariance",
+      arguments: {
+        fnSource: "(applicant) => applicant.income",
+        baseInput: { name: "Emily Carter", income: 80000 },
+        scenarios: [{ name: "no-op mutation", mutateSource: "(input) => ({ ...input })" }],
+      },
+    });
+    const data = parseJson(result);
+    expect(data.vacuous).toEqual(["no-op mutation"]);
   });
 });
 
@@ -331,6 +401,32 @@ describe("check_claims_registry (claims-registry-kit)", () => {
     expect(data.unverified[0].id).toBe("none");
     expect(data.stale[0].id).toBe("old");
   });
+
+  it("accepts maxAgeDays: 0 (a 'must be verified today' policy), not rejected as non-positive", async () => {
+    const result = await client.callTool({
+      name: "check_claims_registry",
+      arguments: {
+        claims: [{ id: "a", text: "We support SSO.", evidenceRef: "docs/sso.md", verifiedAt: "2026-08-02" }],
+        maxAgeDays: 0,
+        now: "2026-08-02T00:00:00.000Z",
+      },
+    });
+    const data = parseJson(result);
+    expect(data.counts.total).toBe(1);
+  });
+
+  it("rejects an unparseable `now` with a clear error instead of an invalid-date report", async () => {
+    const result = (await client.callTool({
+      name: "check_claims_registry",
+      arguments: {
+        claims: [{ id: "a", text: "We support SSO.", evidenceRef: "docs/sso.md", verifiedAt: "2026-08-02" }],
+        maxAgeDays: 90,
+        now: "not-a-real-date",
+      },
+    })) as { isError?: boolean; content?: { text?: string }[] };
+    expect(result.isError).toBe(true);
+    expect(result.content?.[0]?.text).toMatch(/not a valid date/);
+  });
 });
 
 describe("append_audit_entry / verify_audit_chain (audit-chain-kit)", () => {
@@ -357,6 +453,51 @@ describe("append_audit_entry / verify_audit_chain (audit-chain-kit)", () => {
     );
     expect(invalidCheck.valid).toBe(false);
     expect(invalidCheck.brokenAtIndex).toBe(0);
+  });
+
+  it("expectedMinLength alone does not catch truncate-and-re-append, but anchor does", async () => {
+    // Build a genuine 2-entry chain and save an anchor to entry 0 -- a
+    // checkpoint from "somewhere the writer cannot edit" in the real world.
+    const first = parseJson(
+      await client.callTool({ name: "append_audit_entry", arguments: { chain: [], payload: { event: "created" } } }),
+    );
+    const genuineSecond = parseJson(
+      await client.callTool({
+        name: "append_audit_entry",
+        arguments: { chain: first.chain, payload: { event: "approved" } },
+      }),
+    );
+    const anchor = { index: 0, entryHash: first.chain[0].entryHash };
+
+    // Attack: delete entry 0 and re-append a FORGED entry, then re-append a
+    // new entry 1 on top of it, so the chain is self-consistent and back to
+    // length 2 -- same length, different history.
+    const forgedFirst = parseJson(
+      await client.callTool({ name: "append_audit_entry", arguments: { chain: [], payload: { event: "FORGED" } } }),
+    );
+    const relinkedSecond = parseJson(
+      await client.callTool({
+        name: "append_audit_entry",
+        arguments: { chain: forgedFirst.chain, payload: genuineSecond.chain[1].payload },
+      }),
+    );
+
+    const withoutAnchor = parseJson(
+      await client.callTool({
+        name: "verify_audit_chain",
+        arguments: { chain: relinkedSecond.chain, expectedMinLength: 2 },
+      }),
+    );
+    expect(withoutAnchor.valid).toBe(true); // the false negative expectedMinLength's own docs warn about
+
+    const withAnchor = parseJson(
+      await client.callTool({
+        name: "verify_audit_chain",
+        arguments: { chain: relinkedSecond.chain, anchor },
+      }),
+    );
+    expect(withAnchor.valid).toBe(false);
+    expect(withAnchor.brokenAtIndex).toBe(0);
   });
 });
 
@@ -389,6 +530,40 @@ describe("grade_decision (advice-ledger-kit)", () => {
     expect(data.refusalCodes).toEqual([]);
     expect(data.baseline).toEqual({ observations: 4, bad: 2, good: 2, badRate: 0.5 });
     expect(data.result).toEqual({ observations: 4, bad: 0, good: 4, badRate: 0 });
+  });
+
+  it("grades 'not-holding' when the exposed bad rate exceeds the baseline's, even below refuteThreshold", async () => {
+    const rateRecommendation = { id: "rec-3", subjectId: "server-3", checkKey: "disk-space", proposedAt: "2026-01-01T00:00:00Z" };
+    const rateDecision = { recommendationId: "rec-3", status: "adopted", decidedAt: "2026-01-10T00:00:00Z" };
+    const observations = [
+      // Baseline (before decidedAt): 10 observations, 1 bad (rate 0.1) -- clears every baseline floor.
+      { subjectId: "server-3", checkKey: "disk-space", state: "bad", observedAt: "2026-01-02T00:00:00Z" },
+      { subjectId: "server-3", checkKey: "disk-space", state: "good", observedAt: "2026-01-02T01:00:00Z" },
+      { subjectId: "server-3", checkKey: "disk-space", state: "good", observedAt: "2026-01-02T02:00:00Z" },
+      { subjectId: "server-3", checkKey: "disk-space", state: "good", observedAt: "2026-01-02T03:00:00Z" },
+      { subjectId: "server-3", checkKey: "disk-space", state: "good", observedAt: "2026-01-02T04:00:00Z" },
+      { subjectId: "server-3", checkKey: "disk-space", state: "good", observedAt: "2026-01-02T05:00:00Z" },
+      { subjectId: "server-3", checkKey: "disk-space", state: "good", observedAt: "2026-01-02T06:00:00Z" },
+      { subjectId: "server-3", checkKey: "disk-space", state: "good", observedAt: "2026-01-02T07:00:00Z" },
+      { subjectId: "server-3", checkKey: "disk-space", state: "good", observedAt: "2026-01-02T08:00:00Z" },
+      { subjectId: "server-3", checkKey: "disk-space", state: "good", observedAt: "2026-01-02T09:00:00Z" },
+      // Result (after decidedAt, exposed): 3 observations, 1 bad (rate 0.333) -- below the default
+      // refuteThreshold (2) on count alone, but its rate (0.333) is higher than the baseline's (0.1).
+      { subjectId: "server-3", checkKey: "disk-space", state: "bad", observedAt: "2026-01-11T00:00:00Z", exposed: true },
+      { subjectId: "server-3", checkKey: "disk-space", state: "good", observedAt: "2026-01-12T00:00:00Z", exposed: true },
+      { subjectId: "server-3", checkKey: "disk-space", state: "good", observedAt: "2026-01-13T00:00:00Z", exposed: true },
+    ];
+    const result = await client.callTool({
+      name: "grade_decision",
+      arguments: { decision: rateDecision, recommendation: rateRecommendation, observations },
+    });
+    const data = parseJson(result);
+    expect(data.baseline).toEqual({ observations: 10, bad: 1, good: 9, badRate: 0.1 });
+    expect(data.result).toEqual({ observations: 3, bad: 1, good: 2, badRate: 0.333 });
+    // Count alone (1 bad, below refuteThreshold 2) would say 'holding' under the old rule --
+    // the rate check is what makes this 'not-holding'.
+    expect(data.verdict).toBe("not-holding");
+    expect(data.refusalCodes).toEqual([]);
   });
 
   it("refuses to grade a decision with a too-thin, all-good ledger and names the specific floors missed", async () => {
@@ -474,5 +649,14 @@ describe("scaffold tools (agent-receipt-kit, cost-governor-kit)", () => {
     expect(data.workedExample.preCallCeiling.blockedExample.allowed).toBe(false);
     expect(data.workedExample.reserveConfirm.firstCallResult.allowed).toBe(true);
     expect(data.workedExample.reserveConfirm.thirdCallResult.allowed).toBe(false);
+    // A commit that fails after a successful call keeps the result instead of discarding it.
+    const commitFailure = data.workedExample.reserveConfirm.commitFailsAfterSuccessfulCallResult;
+    expect(commitFailure.allowed).toBe(true);
+    expect(commitFailure.result).toBe("call ok");
+    expect(commitFailure.commitError.message).toMatch(/commitUsage always fails/);
+    // A caller-supplied cacheReadPerMillion replaces the fixed 0.1x ratio for that call.
+    const sampleCostUsd: number = data.workedExample.pricing.sampleCostUsd;
+    const sampleCostUsdWithCacheReadOverride: number = data.workedExample.pricing.sampleCostUsdWithCacheReadOverride;
+    expect(sampleCostUsdWithCacheReadOverride).toBeLessThan(sampleCostUsd);
   });
 });

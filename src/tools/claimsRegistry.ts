@@ -24,6 +24,7 @@ const claimSchema = z.object({
   verifiedBy: z.string().optional().describe("Who or what last verified this claim (a name, 'automated-test', an agent id)."),
 });
 
+/** Registers `check_claims_registry` on `server`. */
 export function registerClaimsRegistryTool(server: McpServer): void {
   server.registerTool(
     "check_claims_registry",
@@ -41,11 +42,17 @@ export function registerClaimsRegistryTool(server: McpServer): void {
         "thing it points to still actually supports the claim's text -- pair with check_grounding for that.",
       inputSchema: {
         claims: z.array(claimSchema).min(1).describe("The claims to evaluate."),
-        maxAgeDays: z.number().positive().describe("Staleness policy: evidence older than this many days is flagged stale."),
+        maxAgeDays: z
+          .number()
+          .nonnegative()
+          .describe(
+            "Staleness policy: evidence older than this many days is flagged stale. 0 is valid (every claim " +
+              "must have been verified today or it's stale) -- the kit requires a finite number >= 0.",
+          ),
         now: z.string().optional().describe("ISO 'now' timestamp to evaluate against. Defaults to the current time."),
       },
     },
-    async ({ claims, maxAgeDays, now }) => {
+    ({ claims, maxAgeDays, now }) => {
       try {
         const nowDate = now ? new Date(now) : new Date();
         if (Number.isNaN(nowDate.getTime())) {
