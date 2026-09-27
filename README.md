@@ -191,17 +191,42 @@ anything else this Node process itself can do. The trust model above still
 applies in full: only pass code you wrote or trust, and don't expose this
 server to untrusted, remote, or adversarial input.
 
+## Honest limits
+
+- **This server adds no guarantee beyond what the kit it wraps already
+  documents.** Every tool description was checked against its kit's own
+  README "Honest limits"/"Limits" section as of the sibling-kit commits
+  this branch was built against — read that kit's README for the full
+  detail behind any one-line tool description or table row here. If a
+  kit's own limits change later, this server's wording can drift out of
+  sync again; nothing here re-checks that automatically.
+- **`check_payout_invariance`, `check_mutation_invariance`, and
+  `compute_divergence`'s worker-thread timeout bounds time only, not
+  behavior** — see "A note on the code-execution tools" above. It is not a
+  sandbox.
+- **Not independently installable yet** — see "Status" above. This is not a
+  limit in the wrapped kits' logic, but it is a real limit on using this
+  server at all right now.
+- **`SERVER_VERSION` (`src/server.ts`) and `package.json`'s `version` are
+  two separate values with no automated sync.** They happen to agree today;
+  a future release could forget to bump one.
+
 ## Development
 
 ```bash
+npm run lint         # eslint . --max-warnings=0
 npm run typecheck   # tsc --noEmit over src/ + test/
 npm test             # vitest — spins up a real MCP Client/Server pair
                       # over the SDK's InMemoryTransport and calls tools
-                      # end-to-end (see test/server.test.ts)
+                      # end-to-end (see test/*.test.ts)
+npm run build        # tsc -p tsconfig.build.json -- compiles src/ -> dist/
 npm run smoke        # npm run build first, then node dist/smoke.js --
                       # a standalone script that does the same real
                       # client/server handshake, lists all tools, and
                       # calls one end-to-end
+npm run verify       # lint + typecheck + test + build + smoke, in order
+npm run audit:dependencies   # npm audit --package-lock-only --include=dev
+                              # --ignore-scripts --audit-level=low
 ```
 
 ## Project layout
@@ -214,6 +239,8 @@ src/
   lib/
     result.ts                 CallToolResult helpers (jsonResult / errorResult)
     buildFunction.ts           turns a JS source string into a callable function
+    runFunctionJob.ts          runs that function (or the divergence groupBySource case)
+                               inside a worker_threads Worker with a bounded timeout
   tools/
     grounding.ts
     corroboration.ts
@@ -228,5 +255,11 @@ src/
     agentReceiptScaffold.ts
     costGovernorScaffold.ts
 test/
-  server.test.ts               end-to-end tests over a real in-memory MCP client/server pair
+  server.test.ts               end-to-end tests over a real in-memory MCP client/server pair,
+                                covering every tool's known-good and known-bad input
+  buildFunction.test.ts        unit tests for the source-string -> function builder
+  runFunctionJob.test.ts       unit tests for the worker-thread job runner (normal jobs,
+                                error propagation, timeout enforcement, env var parsing)
+  workerTimeout.test.ts        end-to-end proof that the three code-execution tools stay
+                                bounded by the worker-thread timeout instead of hanging
 ```
