@@ -52,9 +52,12 @@ See the report's "Decisions for Lucas" for the CI options considered.
   Caller-supplied source can still read the filesystem, the network, or
   environment variables — same trust model as this process itself. Don't
   expose this server to untrusted, remote, or adversarial tool arguments.
-- `grade_decision`'s verdict (and `secondary.wouldBeVerdict`) is a threshold
-  count, not a rate comparison — `holding` can come back while the
-  underlying bad rate rose. Read `badRateDelta` alongside it.
+- `grade_decision`'s verdict (and `secondary.wouldBeVerdict`) is `holding`
+  only when the exposed bad count stays under `refuteThreshold` AND the
+  exposed bad rate does not exceed the baseline's (exact comparison of raw
+  counts, not the rounded `badRate`/`badRateDelta` fields) — either
+  condition failing gives `not-holding`. Read `badRateDelta` and the raw
+  counts alongside the verdict regardless.
 
 ## Release and rollback
 

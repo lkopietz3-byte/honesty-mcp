@@ -69,3 +69,21 @@ or run it in place next to all eleven sibling checkouts.
   — both false per cost-governor-kit's own review. Rewritten to say
   "advisory check-then-commit, not a concurrency-safe reservation" and to
   name `withCapacityReservation` as the kit's actual strict-limit path.
+- `append_audit_entry`/`verify_audit_chain`'s hand-written `chainEntrySchema`
+  was missing audit-chain-kit's `formatVersion` field (hashed into every
+  entry as of that kit's `FORMAT_VERSION = "audit-chain-kit/v1"`), so every
+  chain round-tripped through this server's schema had `formatVersion`
+  silently stripped and then failed `verifyChain`'s own version check.
+  Added the field to the schema.
+- `grade_decision`'s description said the verdict "ignores" the exposed bad
+  rate and is a pure threshold count. advice-ledger-kit's `gradeDecision`
+  now also returns `not-holding` when the exposed rate exceeds the
+  baseline's, even below `refuteThreshold`; the description and README row
+  were rewritten to state the real (count-or-rate) rule.
+- `scaffold_cost_governor`'s guidance said a failed `commitUsage` "discards
+  the successful result" from `withReserveConfirm`. cost-governor-kit's
+  `withReserveConfirm` now returns `{ allowed: true, result, commitError }`
+  instead of discarding it; the guidance, starter snippet, and worked
+  example were rewritten to match, and `ModelRates.cacheReadPerMillion`
+  (replaces the fixed 0.1x cache-read ratio) is now documented and
+  demonstrated.
