@@ -532,6 +532,40 @@ describe("grade_decision (advice-ledger-kit)", () => {
     expect(data.result).toEqual({ observations: 4, bad: 0, good: 4, badRate: 0 });
   });
 
+  it("grades 'not-holding' when the exposed bad rate exceeds the baseline's, even below refuteThreshold", async () => {
+    const rateRecommendation = { id: "rec-3", subjectId: "server-3", checkKey: "disk-space", proposedAt: "2026-01-01T00:00:00Z" };
+    const rateDecision = { recommendationId: "rec-3", status: "adopted", decidedAt: "2026-01-10T00:00:00Z" };
+    const observations = [
+      // Baseline (before decidedAt): 10 observations, 1 bad (rate 0.1) -- clears every baseline floor.
+      { subjectId: "server-3", checkKey: "disk-space", state: "bad", observedAt: "2026-01-02T00:00:00Z" },
+      { subjectId: "server-3", checkKey: "disk-space", state: "good", observedAt: "2026-01-02T01:00:00Z" },
+      { subjectId: "server-3", checkKey: "disk-space", state: "good", observedAt: "2026-01-02T02:00:00Z" },
+      { subjectId: "server-3", checkKey: "disk-space", state: "good", observedAt: "2026-01-02T03:00:00Z" },
+      { subjectId: "server-3", checkKey: "disk-space", state: "good", observedAt: "2026-01-02T04:00:00Z" },
+      { subjectId: "server-3", checkKey: "disk-space", state: "good", observedAt: "2026-01-02T05:00:00Z" },
+      { subjectId: "server-3", checkKey: "disk-space", state: "good", observedAt: "2026-01-02T06:00:00Z" },
+      { subjectId: "server-3", checkKey: "disk-space", state: "good", observedAt: "2026-01-02T07:00:00Z" },
+      { subjectId: "server-3", checkKey: "disk-space", state: "good", observedAt: "2026-01-02T08:00:00Z" },
+      { subjectId: "server-3", checkKey: "disk-space", state: "good", observedAt: "2026-01-02T09:00:00Z" },
+      // Result (after decidedAt, exposed): 3 observations, 1 bad (rate 0.333) -- below the default
+      // refuteThreshold (2) on count alone, but its rate (0.333) is higher than the baseline's (0.1).
+      { subjectId: "server-3", checkKey: "disk-space", state: "bad", observedAt: "2026-01-11T00:00:00Z", exposed: true },
+      { subjectId: "server-3", checkKey: "disk-space", state: "good", observedAt: "2026-01-12T00:00:00Z", exposed: true },
+      { subjectId: "server-3", checkKey: "disk-space", state: "good", observedAt: "2026-01-13T00:00:00Z", exposed: true },
+    ];
+    const result = await client.callTool({
+      name: "grade_decision",
+      arguments: { decision: rateDecision, recommendation: rateRecommendation, observations },
+    });
+    const data = parseJson(result);
+    expect(data.baseline).toEqual({ observations: 10, bad: 1, good: 9, badRate: 0.1 });
+    expect(data.result).toEqual({ observations: 3, bad: 1, good: 2, badRate: 0.333 });
+    // Count alone (1 bad, below refuteThreshold 2) would say 'holding' under the old rule --
+    // the rate check is what makes this 'not-holding'.
+    expect(data.verdict).toBe("not-holding");
+    expect(data.refusalCodes).toEqual([]);
+  });
+
   it("refuses to grade a decision with a too-thin, all-good ledger and names the specific floors missed", async () => {
     const thinRecommendation = { id: "rec-2", subjectId: "server-2", checkKey: "cpu-load", proposedAt: "2026-01-01T00:00:00Z" };
     const thinDecision = { recommendationId: "rec-2", status: "adopted", decidedAt: "2026-01-10T00:00:00Z" };

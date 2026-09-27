@@ -155,12 +155,14 @@ export function registerAdviceLedgerGradeTool(server: McpServer): void {
         "Grades one recommendation-and-decision pair against a before/after observation log. Compares a pre-" +
         "decision BASELINE window to a post-decision, exposure-aligned RESULT window on the same subjectId + " +
         "checkKey, and returns 'holding' (the exposed post-decision window stayed under `refuteThreshold` bad " +
-        "observations), 'not-holding' (the exposed post-decision window hit `refuteThreshold` bad " +
-        "observations), or " +
+        "observations AND its bad rate is not higher than the baseline's), 'not-holding' (EITHER the exposed " +
+        "post-decision window hit `refuteThreshold` bad observations, OR its bad rate is higher than the " +
+        "baseline's, even below that count -- 1 bad of 10 before, 1 bad of 3 exposed since is 'not-holding', " +
+        "not 'holding', despite the count staying under the default bar of 2), or " +
         "'refused' (the evidence didn't clear a floor -- see refusalCodes for exactly which one, never a " +
-        "vague 'unproven'). OPEN DESIGN QUESTION, read before trusting a 'holding' verdict: this is a " +
-        "THRESHOLD COUNT, not a rate comparison -- 'holding' can come back even while the bad rate rose (1 " +
-        "bad of 10 before, 1 bad of 3 since is still 'holding' at the default bar). Always show `badRateDelta` " +
+        "vague 'unproven'). The rate comparison is exact -- it cross-multiplies the raw counts rather than " +
+        "comparing the rounded `badRate` fields or the sign of `badRateDelta`, so a `not-holding` can occur " +
+        "even when both windows display the same 3-place `badRate`. Always show `badRateDelta` " +
         "and the raw `baseline`/`result` counts next to the verdict, don't quote 'holding' on its own. The " +
         "verdict grades the DECISION, not just whether advice was taken: a DISMISSED recommendation whose " +
         "problem later surfaced also grades 'not-holding', because the evidence sided with the advice either " +

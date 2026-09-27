@@ -132,7 +132,7 @@ of these real content or data, get back a structured verdict):
 | `check_claims_registry` | claims-registry-kit | Buckets public-facing claims as current / stale / unverified against their linked evidence and last-verified date. |
 | `append_audit_entry` | audit-chain-kit | Appends one entry to a hash-chained, tamper-evident audit log. |
 | `verify_audit_chain` | audit-chain-kit | Independently re-verifies a hash chain from genesis; detects mutation and severed links unconditionally, plain tail deletion with `expectedMinLength`, and truncate-and-re-append (or a full rewrite) only with `anchor` — `expectedMinLength` alone does NOT catch a truncate-and-re-append. |
-| `grade_decision` | advice-ledger-kit | Grades one recommendation-and-decision pair against a before/after observation log — exposure-aligned, with separate floors per window and machine-readable refusal codes. The verdict is a threshold count, not a rate comparison (see the tool description). |
+| `grade_decision` | advice-ledger-kit | Grades one recommendation-and-decision pair against a before/after observation log — exposure-aligned, with separate floors per window and machine-readable refusal codes. `holding` requires both the exposed bad count to stay under `refuteThreshold` AND its bad rate to not exceed the baseline's (exact comparison, not the rounded `badRate`); either failing is `not-holding` (see the tool description). |
 | `compute_divergence` | advice-ledger-kit | Measures how often an engine and a human disagreed, and where a later outcome exists, reports engine-right/human-right as separate, never-blended counts. |
 
 **2 scaffolding tools** (agent-receipt-kit, cost-governor-kit — these are
