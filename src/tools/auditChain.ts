@@ -8,15 +8,21 @@
 
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { appendEntry, verifyChain, type ChainEntry } from "audit-chain-kit";
+import { appendEntry, verifyChain, FORMAT_VERSION, type ChainEntry } from "audit-chain-kit";
 import { errorMessage, errorResult, jsonResult } from "../lib/result.js";
 
 const chainEntrySchema = z.object({
+  formatVersion: z
+    .string()
+    .describe(
+      `Format-and-domain tag hashed into this entry; audit-chain-kit's current tag is "${FORMAT_VERSION}". ` +
+        "verify_audit_chain rejects an entry whose formatVersion is missing or does not match exactly.",
+    ),
   index: z.number().int().nonnegative().describe("Position of this entry in the chain, starting at 0."),
   payload: z.any().describe("Caller data for this entry."),
   prevHash: z.string().describe("The previous entry's entryHash, or 64 zeros for the first entry."),
   createdAt: z.string().describe("ISO-8601 timestamp set at append time."),
-  entryHash: z.string().describe("SHA-256 hex digest binding this entry (and transitively every prior entry) together."),
+  entryHash: z.string().describe("SHA-256 hex digest binding this entry (and transitively every prior entry, including formatVersion) together."),
 });
 
 /** Registers `append_audit_entry` and `verify_audit_chain` on `server`. */
@@ -27,8 +33,10 @@ export function registerAuditChainTools(server: McpServer): void {
       title: "Append a tamper-evident audit-chain entry",
       description:
         "Appends one entry to an append-only, hash-chained audit log and returns the new (longer) chain. " +
-        "Each entry's hash binds its payload, index, and the previous entry's hash together, so any later " +
-        "tampering with an earlier entry breaks the chain in a way verify_audit_chain will detect. Use this " +
+        `Each entry's hash binds its payload, index, createdAt, a fixed format tag (formatVersion, currently ` +
+        `"${FORMAT_VERSION}"), and the previous entry's hash together, so any later tampering with an earlier ` +
+        "entry -- or an entry produced by an incompatible version of audit-chain-kit -- breaks the chain in a " +
+        "way verify_audit_chain will detect. Use this " +
         "wherever you need a tamper-evident record of events (agent actions, approvals, state transitions) " +
         "that a skeptical third party can later verify independently. This function does not persist " +
         "anything itself -- store the returned chain (or just the new entry) in whatever your app already uses.",
