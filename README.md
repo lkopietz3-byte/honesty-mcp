@@ -2,7 +2,7 @@
 
 Honesty MCP gives compatible agents one server for checking citations, claim evidence, provenance, audit records, and decision outputs. It wraps eleven sibling TypeScript kits; those kits must be checked out alongside it because they are not published to npm.
 
-Its tools also cover payout and mutation invariance, review-signal scoring, recommendation outcomes, and agent receipts. The server calls the kits' existing exports rather than reimplementing their logic.
+Its tools also cover payout and mutation invariance, review-signal scoring, recommendation outcomes, and agent receipts.
 
 This server is thin by design: every tool is a Zod input schema plus a
 handler that imports and calls the real, unmodified export from the wrapped
