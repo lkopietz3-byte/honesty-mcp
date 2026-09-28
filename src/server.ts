@@ -19,7 +19,7 @@ import { registerAdviceLedgerGradeTool, registerAdviceLedgerDivergenceTool } fro
 /** The name this server reports to MCP clients during the initialize handshake. */
 export const SERVER_NAME = "honesty-mcp";
 /** The version this server reports to MCP clients. Keep in sync with package.json's `version`. */
-export const SERVER_VERSION = "0.1.0";
+export const SERVER_VERSION = "0.1.1";
 
 /** Builds a fresh McpServer with every honesty-kit tool registered. */
 export function createServer(): McpServer {

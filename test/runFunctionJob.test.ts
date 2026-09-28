@@ -6,13 +6,49 @@
 // See workerTimeout.test.ts for the end-to-end proof (through the actual
 // MCP tools) that this replaced synchronous, unbounded in-process execution.
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_WORKER_TIMEOUT_MS,
+  MAX_WORKER_TIMEOUT_MS,
   resolveWorkerTimeoutMs,
   runFunctionJob,
   WORKER_TIMEOUT_ENV_VAR,
 } from "../src/lib/runFunctionJob.js";
+
+describe("runFunctionJob: caller output never reaches stdout", () => {
+  it("routes console.log, console.error and process.stdout.write from caller code to stderr", async () => {
+    const stdoutWrites: string[] = [];
+    const stderrWrites: string[] = [];
+    const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      stdoutWrites.push(String(chunk));
+      return true;
+    });
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation((chunk: unknown) => {
+      stderrWrites.push(String(chunk));
+      return true;
+    });
+    try {
+      const result = await runFunctionJob<{ passed: boolean }>(
+        {
+          kind: "mutation-invariance",
+          fnSource:
+            '(x) => { console.log("LEAK_LOG"); console.error("LEAK_ERR"); process.stdout.write("LEAK_RAW\\n"); return x.v; }',
+          baseInput: { v: 1, other: 1 },
+          scenarios: [{ name: "change other", mutateSource: "(i) => ({ ...i, other: 2 })" }],
+        },
+        5000,
+      );
+      expect(result.passed).toBe(true);
+      // Give the worker's piped streams a moment to flush before asserting.
+      await new Promise((r) => setTimeout(r, 50));
+    } finally {
+      stdoutSpy.mockRestore();
+      stderrSpy.mockRestore();
+    }
+    expect(stdoutWrites.join("")).not.toMatch(/LEAK_/);
+    expect(stderrWrites.join("")).toMatch(/LEAK_LOG/);
+  });
+});
 
 describe("resolveWorkerTimeoutMs", () => {
   it("returns the default when the env var is unset", () => {
@@ -36,6 +72,39 @@ describe("resolveWorkerTimeoutMs", () => {
     } finally {
       delete process.env[WORKER_TIMEOUT_ENV_VAR];
     }
+  });
+
+  it("accepts the largest delay Node's timers honor", () => {
+    process.env[WORKER_TIMEOUT_ENV_VAR] = String(MAX_WORKER_TIMEOUT_MS);
+    try {
+      expect(resolveWorkerTimeoutMs()).toBe(MAX_WORKER_TIMEOUT_MS);
+    } finally {
+      delete process.env[WORKER_TIMEOUT_ENV_VAR];
+    }
+  });
+
+  it("rejects delays Node would silently turn into 1 ms", () => {
+    // setTimeout clamps anything above 2147483647 ms to 1 ms, so accepting
+    // these would make every job time out immediately.
+    for (const bad of [String(MAX_WORKER_TIMEOUT_MS + 1), "2147483648", "1e12"]) {
+      process.env[WORKER_TIMEOUT_ENV_VAR] = bad;
+      try {
+        expect(() => resolveWorkerTimeoutMs()).toThrow(WORKER_TIMEOUT_ENV_VAR);
+      } finally {
+        delete process.env[WORKER_TIMEOUT_ENV_VAR];
+      }
+    }
+  });
+
+  it("rejects a timeoutMs argument outside the timer range", async () => {
+    const job = {
+      kind: "payout-invariance" as const,
+      rankFnSource: "(c) => c",
+      baseInput: [],
+      mutations: [{ name: "noop", mutateSource: "(i) => i" }],
+    };
+    await expect(runFunctionJob(job, MAX_WORKER_TIMEOUT_MS + 1)).rejects.toThrow(RangeError);
+    await expect(runFunctionJob(job, 0)).rejects.toThrow(RangeError);
   });
 
   it("rejects zero, negative, and non-numeric overrides", () => {

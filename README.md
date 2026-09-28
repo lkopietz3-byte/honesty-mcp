@@ -160,8 +160,12 @@ so a `while (true) {}` source string would block the *entire* stdio server
 forever — every other in-flight or future tool call along with it. Now, if
 the worker doesn't finish within the timeout (default **10 seconds**,
 override with the `HONESTY_MCP_WORKER_TIMEOUT_MS` environment variable, in
-milliseconds), it is forcibly `terminate()`d and the tool call returns a
-clear timeout error instead of hanging. **This is not a sandbox** — the
+milliseconds, from 1 to 2147483647), it is forcibly `terminate()`d and the
+tool call returns a clear timeout error instead of hanging. Anything the
+supplied code prints (`console.log`, `console.error`, `process.stdout.write`)
+is captured and written to the server's stderr with a
+`[honesty-mcp worker]` prefix, capped at 16 KiB per call. It never reaches
+stdout, which carries the MCP protocol. **This is not a sandbox** — the
 worker has this process's full OS-level privileges (filesystem, network,
 environment variables) — it only bounds *time*. It does not stop caller
 code from reading your filesystem, making network requests, or doing

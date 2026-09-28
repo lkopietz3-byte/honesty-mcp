@@ -1,6 +1,6 @@
 {
   "name": "honesty-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "mcpName": "io.github.lkopietz3-byte/honesty-mcp",
   "description": "MCP server exposing the eleven-kit 'honesty SDK' family (grounding-kit, corroboration-kit, payout-invariance-kit, mutation-invariance-kit, trust-core, provenance-kit, claims-registry-kit, audit-chain-kit, advice-ledger-kit, agent-receipt-kit, cost-governor-kit) as tools any MCP-compatible coding agent can call while building or auditing a product.",
   "keywords": [
@@ -47,8 +47,10 @@
     "test": "vitest run",
     "smoke": "npm run build && node dist/smoke.js",
     "audit:dependencies": "npm audit --package-lock-only --include=dev --ignore-scripts --audit-level=low",
-    "verify": "npm run lint && npm run typecheck && npm test && npm run build && npm run smoke",
-    "prepublishOnly": "npm run verify"
+    "verify": "npm run lint && npm run typecheck && npm test && npm run build && npm run smoke && npm run stdio-probe && npm run verify:installed",
+    "prepublishOnly": "npm run verify",
+    "stdio-probe": "node scripts/stdio-probe.mjs",
+    "verify:installed": "node scripts/verify-installed.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.1",
