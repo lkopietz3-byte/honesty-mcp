@@ -15,105 +15,83 @@ This server is thin by design: every tool is a Zod input schema plus a
 handler that imports and calls the real, unmodified export from the wrapped
 kit. It does not reimplement any of the underlying logic.
 
-## Status: monorepo-adjacent, not yet npm-installable
+## Install
 
-**This package depends on its eleven sibling kits via local `file:` paths**
-(e.g. `"grounding-kit": "file:../grounding-kit"`), because none of them are
-published to npm yet. That means `honesty-mcp` only works if it sits next
-to all eleven sibling directories, exactly as laid out today:
+`honesty-mcp` is published on npm and wraps its eleven sibling "honesty SDK"
+kits as ordinary registry dependencies (semver ranges, not local `file:`
+paths) — `npm install` (or a plain `npx`) resolves everything from the
+public registry, with nothing else to check out first.
 
-```
-~/grounding-kit/
-~/corroboration-kit/
-~/payout-invariance-kit/
-~/mutation-invariance-kit/
-~/trust-core/
-~/provenance-kit/
-~/claims-registry-kit/
-~/audit-chain-kit/
-~/advice-ledger-kit/
-~/agent-receipt-kit/
-~/cost-governor-kit/
-~/honesty-mcp/                <- this package
-```
-
-`npm install` resolves each dependency by walking up to the parent
-directory and symlinking the sibling folder into `node_modules`. If you
-move `honesty-mcp` somewhere else, update the relative paths in
-`package.json`'s `dependencies` block (or, once these kits are published,
-switch each one to a real npm version range). This is not yet an
-independently installable package — say so plainly to anyone using it.
-
-## What's in each sibling kit, and whether it needed a build fix
-
-Three of the eleven sibling kits originally pointed their `package.json`
-`main`/`exports` fields directly at raw `src/*.ts` with no `build` script —
-that resolves fine for a TypeScript-aware bundler inside the same
-monorepo, but not for a plain `file:` dependency loaded by Node's own
-module resolver. Each of those three got a **minimal, source-preserving
-fix** (no `src/` or test changes) so `npm install && npm run build` in
-`honesty-mcp` actually resolves them:
-
-| Kit | Problem found | Fix applied |
-|---|---|---|
-| `grounding-kit` | `main`/`exports` already pointed at `dist/`, but `dist/` didn't exist yet (no prior build run) | None needed — ran `npm run build` once to produce `dist/`. |
-| `payout-invariance-kit` | `main`/`exports`/`types` pointed straight at `src/index.ts`; no `build` script existed | Added `tsconfig.build.json`, added a `build` script (`tsc -p tsconfig.build.json`), repointed `main`/`module`/`types`/`exports` at `./dist/*`. The package was also later renamed from `payout-invariance` to `payout-invariance-kit`; this repo's `package.json` dependency key and its one import specifier (`src/tools/payoutInvariance.ts`) are updated to match. |
-| `mutation-invariance-kit` | Same problem, plus a `./presets` subpath export also pointing at raw `src/` | Same fix, extended to the `./presets` subpath; `tsconfig.build.json` excludes `*.test.ts` so test files aren't emitted into `dist/`. |
-| `cost-governor-kit` | Had a `"build": "tsc"` script, but it emitted alongside `main`/`exports` still pointing at `src/*.ts`, and would have emitted its `*.test.ts` files into `dist/` too | Added `tsconfig.build.json` (excludes `*.test.ts`), repointed `build` at it, repointed `main`/`module`/`types`/`exports` (including the `./pricing`, `./preCallCeiling`, `./reserveConfirm` subpaths) at `./dist/*`. |
-| `corroboration-kit`, `trust-core`, `provenance-kit`, `claims-registry-kit`, `audit-chain-kit`, `agent-receipt-kit`, `advice-ledger-kit` | None — already had a `dist/` build step correctly wired | No changes. |
-
-After each fix, that kit's own `npm test` and `npm run typecheck` were
-re-run and still pass — nothing in `src/` or any `*.test.ts` file was
-touched, only `package.json` and a new `tsconfig.build.json`.
-
-(`advice-ledger-kit` was wired in after the other ten, once it existed —
-its `package.json`/`exports` already pointed at `./dist/*` with a working
-`build` script, same shape as the "no changes" row above, so it needed no
-fix either.)
-
-## Running it
+The fastest way to run it, with no install step at all:
 
 ```bash
-cd ~/honesty-mcp
-npm install       # resolves the 11 sibling file: dependencies too
-npm run build      # compiles src/ -> dist/
-npm start           # runs dist/index.js on stdio
+npx honesty-mcp
 ```
 
-`npm start` (equivalently `node dist/index.js`) starts the server on the
-**stdio transport** — it reads JSON-RPC requests from stdin and writes
-responses to stdout, logging only a one-line startup banner to stderr so
-stdout stays a clean JSON-RPC channel. This is the transport Claude Code,
-Claude Desktop, and most local/CLI MCP client integrations expect for a
-locally-run server; it is not an HTTP server and has no port to browse to.
+Or add it to a project:
 
-## Configuring it in an MCP client
+```bash
+npm install honesty-mcp
+```
 
-Add an entry to your client's MCP server config (Claude Code's
-`.mcp.json` / `claude mcp add`, or Claude Desktop's
-`claude_desktop_config.json` both use this same `mcpServers` shape):
+### Adding it to an MCP client
+
+Claude Code:
+
+```bash
+claude mcp add honesty-mcp -- npx -y honesty-mcp
+```
+
+Any other MCP client that reads an `mcpServers` config (Claude Desktop's
+`claude_desktop_config.json` uses the same shape):
 
 ```json
 {
   "mcpServers": {
     "honesty-mcp": {
-      "command": "node",
-      "args": ["/absolute/path/to/honesty-mcp/dist/index.js"]
+      "command": "npx",
+      "args": ["-y", "honesty-mcp"]
     }
   }
 }
 ```
 
-Or, via the Claude Code CLI:
+The server runs on the **stdio transport** — it reads JSON-RPC requests
+from stdin and writes responses to stdout, logging only a one-line startup
+banner to stderr so stdout stays a clean JSON-RPC channel. This is the
+transport Claude Code, Claude Desktop, and most local/CLI MCP client
+integrations expect for a locally-run server; it is not an HTTP server and
+has no port to browse to.
+
+### Listing in the MCP registry
+
+`honesty-mcp` also ships a `server.json` (validated against the official
+schema) so it can be listed on the
+[official MCP registry](https://github.com/modelcontextprotocol/registry),
+under the name `io.github.lkopietz3-byte/honesty-mcp`. Listing is a manual,
+one-time step the maintainer runs after this package is on npm — it is
+**not** run as part of this repo's CI or `npm publish`. Exact commands,
+from the registry's own docs
+([publishing guide](https://github.com/modelcontextprotocol/registry/blob/main/docs/modelcontextprotocol-io/quickstart.mdx),
+[CLI reference](https://github.com/modelcontextprotocol/registry/blob/main/docs/reference/cli/commands.md)):
 
 ```bash
-claude mcp add honesty-mcp -- node /absolute/path/to/honesty-mcp/dist/index.js
+# 1. Install the publisher CLI (macOS/Linux)
+curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+sudo mv mcp-publisher /usr/local/bin/
+
+# 2. Log in with GitHub (proves ownership of the io.github.lkopietz3-byte namespace)
+mcp-publisher login github
+
+# 3. Publish (validates server.json against the schema, then submits it)
+mcp-publisher publish
 ```
 
-`/absolute/path/to/honesty-mcp` is a placeholder — substitute wherever you
-actually cloned this repo (e.g. `~/honesty-mcp` expanded to its real path).
-Use an absolute path to `dist/index.js` — the client launches this as a
-subprocess from its own working directory, not from `~/honesty-mcp`.
+`package.json`'s `mcpName` field (`io.github.lkopietz3-byte/honesty-mcp`)
+must match `server.json`'s `name` field exactly — that's how the registry
+verifies the npm package and the registry listing belong to the same
+publisher (see
+[package-types.mdx, "Ownership Verification"](https://github.com/modelcontextprotocol/registry/blob/main/docs/modelcontextprotocol-io/package-types.mdx)).
 
 ## Tools
 
@@ -204,14 +182,22 @@ server to untrusted, remote, or adversarial input.
   `compute_divergence`'s worker-thread timeout bounds time only, not
   behavior** — see "A note on the code-execution tools" above. It is not a
   sandbox.
-- **Not independently installable yet** — see "Status" above. This is not a
-  limit in the wrapped kits' logic, but it is a real limit on using this
-  server at all right now.
 - **`SERVER_VERSION` (`src/server.ts`) and `package.json`'s `version` are
   two separate values with no automated sync.** They happen to agree today;
   a future release could forget to bump one.
 
 ## Development
+
+To work on this server itself (rather than just use it), clone the repo and
+build from source:
+
+```bash
+git clone https://github.com/lkopietz3-byte/honesty-mcp.git
+cd honesty-mcp
+npm install          # resolves the 11 wrapped kits from the npm registry
+npm run build         # compiles src/ -> dist/
+npm start              # runs dist/index.js on stdio
+```
 
 ```bash
 npm run lint         # eslint . --max-warnings=0
