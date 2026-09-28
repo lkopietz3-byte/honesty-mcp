@@ -21,12 +21,12 @@
 4. `SERVER_VERSION` (`src/server.ts`) and `package.json`'s `version` are two
    separate values with no automated sync — bump both by hand on release.
 5. Zero runtime dependencies beyond `@modelcontextprotocol/sdk`, `zod`, and
-   the eleven `file:`-linked sibling kits.
+   the eleven published sibling kits (semver ranges, not `file:` links).
 
 ## Setup and verification
 
 ```bash
-npm install             # also resolves the 11 sibling file: dependencies
+npm install             # resolves the 11 sibling kits from the npm registry
 npm run verify           # lint + typecheck + test + build + smoke
 npm audit --include=dev
 ```
@@ -34,13 +34,36 @@ npm audit --include=dev
 `npm run verify` runs, in order: `eslint . --max-warnings=0`,
 `tsc --noEmit`, `vitest run`, `tsc -p tsconfig.build.json`, and
 `node dist/smoke.js` (a real MCP client/server handshake over
-`InMemoryTransport`, listing every tool and calling one end-to-end).
+`InMemoryTransport`, listing every tool and calling one end-to-end). It
+also runs automatically as `prepublishOnly` before `npm publish`.
 
-No `verify:package`/consumer-probe step and no CI workflow here, unlike the
-sibling kits: both are library-publishing concerns, and this package is
-`private: true` with a `bin`, whose `file:` sibling dependencies CI cannot
-resolve without also checking out (or publishing) all eleven kits first.
-See the report's "Decisions for Lucas" for the CI options considered.
+`.github/workflows/verify.yml` runs the same pipeline (plus
+`audit:dependencies`) in CI on every push/PR, on Node 26.3.0, with a
+separate Node 20/22/24 compatibility job. This wasn't possible before the
+sibling kits were on npm: CI can't check out `file:../<kit>` sibling paths,
+and several of those repos were private.
+
+There is no `verify:package`/consumer-probe step here, unlike the sibling
+kits — that's a library-publishing concept (pack a tarball, install it into
+a scratch project, import it by name) that doesn't map cleanly onto a
+`bin`-only CLI with no `exports`. The equivalent manual check (pack, install
+the tarball into a scratch project, run a real stdio JSON-RPC handshake via
+`npx`) was done once for the npm-publish-readiness pass; see the PR that
+introduced it.
+
+### History: build fixes made while these kits were still `file:`-linked
+
+Before any of the eleven sibling kits were published, `honesty-mcp`
+depended on them via local `file:../<kit>` paths, and three of them
+(`payout-invariance-kit`, `mutation-invariance-kit`, `cost-governor-kit`)
+needed a `tsconfig.build.json` and a real `build` script added — their
+`main`/`exports` fields pointed straight at raw `src/*.ts`, which resolves
+fine for a bundler inside the same monorepo but not for Node's own module
+resolver loading a `file:` dependency. `payout-invariance-kit` was also
+renamed from `payout-invariance` partway through; this repo's dependency
+key and its one import specifier were updated to match. All of that is now
+moot for installation (every kit is published with a working `dist/`
+build), but it's why that rename shows up in this server's own git history.
 
 ## What this is NOT certified to do
 
@@ -61,8 +84,11 @@ See the report's "Decisions for Lucas" for the CI options considered.
 
 ## Release and rollback
 
-Not yet published (0.1.0). To release: bump `version` in `package.json` AND
-`SERVER_VERSION` in `src/server.ts` (see invariant 4), add a CHANGELOG
-entry, tag the commit. No published version to roll back yet; once one
-exists, this server keeps no state of its own, so rollback is just pointing
-the MCP client config at a previous tagged build and restarting it.
+To release: bump `version` in `package.json` AND `SERVER_VERSION` in
+`src/server.ts` (see invariant 4), add a CHANGELOG entry, tag the commit,
+run `npm publish` (which runs `prepublishOnly` -> the full verify pipeline
+first). If also updating the MCP registry listing, bump `server.json`'s
+`version` to match and re-run `mcp-publisher publish` (see README,
+"Listing in the MCP registry"). This server keeps no state of its own, so
+rollback is just pointing the MCP client config at a previous published
+version (`npx honesty-mcp@<version>`) or a previous tagged build.

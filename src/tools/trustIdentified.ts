@@ -72,7 +72,7 @@ export function registerTrustIdentifiedTool(server: McpServer): void {
       inputSchema: {
         signals: z.array(signalSchema).describe("The identified signals to score from. May be empty (yields the prior)."),
         config: configSchema,
-        asOf: z.string().describe("ISO 'now' timestamp recency decay is computed against. Pass a fixed value for determinism."),
+        now: z.string().describe("ISO 'now' timestamp recency decay is computed against. Pass a fixed value for determinism."),
         prior: z.number().min(0).max(100).describe("The domain/category baseline the score shrinks toward when evidence is thin."),
         dial: z
           .union([z.enum(["as_is", "balanced", "strict"]), z.number()])
@@ -80,10 +80,10 @@ export function registerTrustIdentifiedTool(server: McpServer): void {
           .describe("Shrinkage strength: a named preset, or a raw phantom-prior-signal count. Defaults to 'balanced'."),
       },
     },
-    ({ signals, config, asOf, prior, dial }) => {
+    ({ signals, config, now, prior, dial }) => {
       try {
         const resolvedConfig = identified.resolveIdentifiedConfig(config);
-        const result = identified.scoreEntity(signals, resolvedConfig, { asOf, prior, dial });
+        const result = identified.scoreEntity(signals, resolvedConfig, { now, prior, dial });
         const summary =
           `Score: ${result.score.toFixed(1)}/100 (raw: ${result.raw === null ? "n/a (no evidence)" : result.raw.toFixed(1)}), ` +
           `confidence: ${result.confidence.level} (nEff=${result.nEff.toFixed(2)}), from ${result.signalCount} signal(s).`;

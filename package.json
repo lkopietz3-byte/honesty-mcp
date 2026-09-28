@@ -1,6 +1,7 @@
 {
   "name": "honesty-mcp",
   "version": "0.1.0",
+  "mcpName": "io.github.lkopietz3-byte/honesty-mcp",
   "description": "MCP server exposing the eleven-kit 'honesty SDK' family (grounding-kit, corroboration-kit, payout-invariance-kit, mutation-invariance-kit, trust-core, provenance-kit, claims-registry-kit, audit-chain-kit, advice-ledger-kit, agent-receipt-kit, cost-governor-kit) as tools any MCP-compatible coding agent can call while building or auditing a product.",
   "keywords": [
     "mcp",
@@ -25,7 +26,6 @@
     "url": "https://github.com/lkopietz3-byte/honesty-mcp/issues"
   },
   "type": "module",
-  "private": true,
   "bin": {
     "honesty-mcp": "./dist/index.js"
   },
@@ -39,7 +39,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && chmod +x dist/index.js",
     "start": "node dist/index.js",
     "dev": "tsc -p tsconfig.build.json --watch",
     "typecheck": "tsc --noEmit",
@@ -47,22 +47,23 @@
     "test": "vitest run",
     "smoke": "npm run build && node dist/smoke.js",
     "audit:dependencies": "npm audit --package-lock-only --include=dev --ignore-scripts --audit-level=low",
-    "verify": "npm run lint && npm run typecheck && npm test && npm run build && npm run smoke"
+    "verify": "npm run lint && npm run typecheck && npm test && npm run build && npm run smoke",
+    "prepublishOnly": "npm run verify"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.1",
     "zod": "^4.0.0",
-    "grounding-kit": "file:../grounding-kit",
-    "corroboration-kit": "file:../corroboration-kit",
-    "payout-invariance-kit": "file:../payout-invariance-kit",
-    "mutation-invariance-kit": "file:../mutation-invariance-kit",
-    "trust-core": "file:../trust-core",
-    "provenance-kit": "file:../provenance-kit",
-    "claims-registry-kit": "file:../claims-registry-kit",
-    "audit-chain-kit": "file:../audit-chain-kit",
-    "advice-ledger-kit": "file:../advice-ledger-kit",
-    "agent-receipt-kit": "file:../agent-receipt-kit",
-    "cost-governor-kit": "file:../cost-governor-kit"
+    "grounding-kit": "^0.1.1",
+    "corroboration-kit": "^0.1.1",
+    "payout-invariance-kit": "^0.1.1",
+    "mutation-invariance-kit": "^0.1.1",
+    "trust-core": "^0.1.0",
+    "provenance-kit": "^0.1.1",
+    "claims-registry-kit": "^0.2.0",
+    "audit-chain-kit": "^0.1.1",
+    "advice-ledger-kit": "^0.1.1",
+    "agent-receipt-kit": "^0.1.1",
+    "cost-governor-kit": "^0.1.0"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

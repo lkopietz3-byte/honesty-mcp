@@ -56,7 +56,11 @@ export function registerCorroborationTool(server: McpServer): void {
                 .describe("How many evidence units were actually examined."),
               totalUnits: z
                 .number()
-                .describe("Size of the full evidence pool. <= 0 (unknown/empty pool) is treated as thin."),
+                .describe(
+                  "Size of the full evidence pool. 0 (unknown/empty pool) is treated as thin. A negative " +
+                    "value, or a sampledUnits greater than totalUnits, is an impossible input the kit rejects " +
+                    "outright (surfaces as a tool error, not a coverage verdict).",
+                ),
               hadStructuralReadAccess: z
                 .boolean()
                 .describe(

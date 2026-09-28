@@ -7,10 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.0] - 2026-09-24
 
-First release. Not yet published to npm, and not independently installable
-today: it depends on its eleven sibling "honesty SDK" kits via local `file:`
-paths (see README, "Status"). Install from git once the kits are published,
-or run it in place next to all eleven sibling checkouts.
+First release, prepared for its first publish to npm and for listing on the
+official MCP registry as `io.github.lkopietz3-byte/honesty-mcp`. Its eleven
+sibling "honesty SDK" kits are now all published to npm too, so this
+package depends on them via ordinary semver ranges instead of local `file:`
+paths — `npm install` or `npx honesty-mcp` resolves everything from the
+registry, with nothing else to check out first.
 
 ### Added
 
@@ -87,3 +89,30 @@ or run it in place next to all eleven sibling checkouts.
   example were rewritten to match, and `ModelRates.cacheReadPerMillion`
   (replaces the fixed 0.1x cache-read ratio) is now documented and
   demonstrated.
+- `score_trust_identified` called trust-core's `scoreEntity` with an
+  `asOf` option; trust-core renamed that clock option to `now` (matching
+  `assessAuthenticity` and sibling kits), so every call silently got
+  `now: undefined` and threw "now must be an ISO 8601 timestamp string
+  (got undefined)". Renamed the tool's own `asOf` input to `now` to match.
+- `corroborate_evidence`'s `coverage.totalUnits` description said a
+  value `<= 0` is "treated as thin"; corroboration-kit's `coverageOf` now
+  throws `RangeError` on a negative `totalUnits` or a `sampledUnits`
+  greater than `totalUnits` (an impossible sample) instead of silently
+  computing a coverage level. The tool already surfaced this correctly as
+  a clean tool error via its existing try/catch; only the description was
+  wrong. Corrected it and added a regression test.
+
+### Changed
+
+- Switched all eleven wrapped-kit dependencies from local `file:../<kit>`
+  paths to published npm semver ranges (`^0.2.0` for claims-registry-kit,
+  `^0.1.1` for eight kits, `^0.1.0` for trust-core and cost-governor-kit).
+- Removed `"private": true`; added `prepublishOnly` (runs the full verify
+  pipeline) and `mcpName` (required by the MCP registry to verify npm
+  package ownership); made `dist/index.js` executable as part of `build`.
+- Added `server.json` for the official MCP registry (npm package entry,
+  stdio transport), validated against the published schema.
+- Added `.github/workflows/verify.yml`: audit, lint, typecheck, test,
+  build, and smoke on Node 26.3.0, plus a Node 20/22/24 compatibility job
+  — not possible before the sibling kits were on npm (CI can't resolve
+  `file:../<kit>` paths, and several sibling repos were private).

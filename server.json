@@ -1,0 +1,31 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.lkopietz3-byte/honesty-mcp",
+  "description": "MCP server exposing 11 honesty-SDK kits (grounding, trust, audit, corroboration) as agent tools.",
+  "title": "honesty-mcp",
+  "version": "0.1.0",
+  "repository": {
+    "url": "https://github.com/lkopietz3-byte/honesty-mcp",
+    "source": "github",
+    "id": "1321142840"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "honesty-mcp",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "HONESTY_MCP_WORKER_TIMEOUT_MS",
+          "description": "Timeout in milliseconds for the worker thread (a time limit, not a sandbox) that runs caller-supplied JS source (check_payout_invariance runtime mode, check_mutation_invariance, compute_divergence's groupBySource). Defaults to 10000.",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}
