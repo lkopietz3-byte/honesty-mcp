@@ -346,6 +346,19 @@ describe("corroborate_evidence (corroboration-kit)", () => {
     });
     expect(parseJson(withStructural).verdict).toBe("confirmed");
   });
+
+  it("reports a clear tool error (not a wrong verdict) for an impossible sample size", async () => {
+    const result = await client.callTool({
+      name: "corroborate_evidence",
+      arguments: {
+        signals: [{ source: "doc-a", kind: "textual", vote: "supports", detail: "mentions it" }],
+        coverage: { sampledUnits: 50, totalUnits: 10, hadStructuralReadAccess: false },
+      },
+    });
+    const r = result as { isError?: boolean; content?: { type: string; text?: string }[] };
+    expect(r.isError).toBe(true);
+    expect(r.content?.[0]?.text).toMatch(/cannot exceed totalUnits/);
+  });
 });
 
 describe("score_trust_identified / assess_anonymous_authenticity (trust-core)", () => {
@@ -354,7 +367,7 @@ describe("score_trust_identified / assess_anonymous_authenticity (trust-core)", 
       name: "score_trust_identified",
       arguments: {
         signals: [{ id: "s1", tier: "new", source: "imported", proof: "none", reputation: null, occurredAt: null, value: 95 }],
-        asOf: "2026-01-01T00:00:00.000Z",
+        now: "2026-01-01T00:00:00.000Z",
         prior: 50,
       },
     });
