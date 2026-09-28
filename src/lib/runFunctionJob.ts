@@ -18,9 +18,21 @@
 // under vitest (TypeScript, no dist/ build): a path built from
 // import.meta.url would point at a real dist/lib/*.js file in the compiled
 // case but at a non-existent src/lib/*.js file under vitest (the real file
-// there is *.ts, and a plain Node worker has no TypeScript loader). Bare
-// specifiers -- the wrapped kit packages -- resolve normally from this
-// process's node_modules in either case, via Node's own module resolution.
+// there is *.ts, and a plain Node worker has no TypeScript loader).
+//
+// An eval worker resolves bare specifiers against the process's current
+// working directory, not against this package. MCP clients launch the
+// server from wherever they happen to be (`npx honesty-mcp`, `claude mcp
+// add`), so a bare `import("payout-invariance-kit")` inside the worker
+// failed with "Cannot find package" whenever the cwd was not a project that
+// itself had the kits installed. The kit module URL is therefore resolved
+// HERE, relative to this module, and passed to the worker as an absolute
+// file URL (see resolveKitUrl).
+//
+// Worker stdout/stderr are captured (Worker `stdout: true, stderr: true`),
+// never forwarded to this process's stdout: stdout carries the MCP JSON-RPC
+// protocol, and a caller's console.log would corrupt it. Captured output is
+// written to this process's stderr with a prefix, capped per job.
 //
 // The function-from-source-string builder (see buildFunction.ts for the
 // canonical, independently-tested version) is duplicated inline in
@@ -29,7 +41,42 @@
 // canonical copy directly; runFunctionJob.test.ts exercises this copy
 // end-to-end through the worker).
 
+import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
 import { Worker } from "node:worker_threads";
+
+const requireFromHere = createRequire(import.meta.url);
+
+/** The wrapped kit each job kind imports inside the worker. */
+const KIT_FOR_JOB = {
+  "payout-invariance": "payout-invariance-kit",
+  "mutation-invariance": "mutation-invariance-kit",
+  "divergence-group-by": "advice-ledger-kit",
+} as const;
+
+/**
+ * Resolves a wrapped kit's entry point relative to THIS module (and so to
+ * honesty-mcp's own dependencies), returning an absolute file URL the worker
+ * can `import()` regardless of the process's working directory.
+ */
+function resolveKitUrl(specifier: string): string {
+  const meta = import.meta as { resolve?: (specifier: string) => string };
+  if (typeof meta.resolve === "function") {
+    try {
+      const resolved = meta.resolve(specifier);
+      if (resolved.startsWith("file:")) return resolved;
+    } catch {
+      // Fall through to the CommonJS resolver below.
+    }
+  }
+  return pathToFileURL(requireFromHere.resolve(specifier)).href;
+}
+
+/** Largest delay Node's timers honor; larger values fire after 1 ms. */
+export const MAX_WORKER_TIMEOUT_MS = 2_147_483_647;
+
+/** Cap on captured worker output copied to stderr, per job. */
+const MAX_FORWARDED_OUTPUT_BYTES = 16 * 1024;
 
 /** One caller-supplied-source job this module knows how to run in a worker. */
 export type FunctionJob =
@@ -62,15 +109,18 @@ export const WORKER_TIMEOUT_ENV_VAR = "HONESTY_MCP_WORKER_TIMEOUT_MS";
  * Reads {@link WORKER_TIMEOUT_ENV_VAR} and returns the timeout to use, in
  * milliseconds. Unset or blank falls back to {@link DEFAULT_WORKER_TIMEOUT_MS}.
  * Throws a plain Error (not a timeout) if the env var is set to something
- * that isn't a positive, finite number.
+ * outside 1 to {@link MAX_WORKER_TIMEOUT_MS} milliseconds. Node silently
+ * turns larger timer delays into 1 ms, so they are rejected rather than
+ * accepted and then ignored.
  */
 export function resolveWorkerTimeoutMs(): number {
   const raw = process.env[WORKER_TIMEOUT_ENV_VAR];
   if (raw === undefined || raw.trim() === "") return DEFAULT_WORKER_TIMEOUT_MS;
   const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
+  if (!Number.isFinite(parsed) || parsed < 1 || parsed > MAX_WORKER_TIMEOUT_MS) {
     throw new Error(
-      `${WORKER_TIMEOUT_ENV_VAR} must be a positive number of milliseconds, got ${JSON.stringify(raw)}.`,
+      `${WORKER_TIMEOUT_ENV_VAR} must be a number of milliseconds from 1 to ${MAX_WORKER_TIMEOUT_MS}, ` +
+        `got ${JSON.stringify(raw)}.`,
     );
   }
   return parsed;
@@ -107,10 +157,10 @@ const WORKER_SOURCE = `
 import { parentPort, workerData } from "node:worker_threads";
 ${BUILD_FUNCTION_FROM_SOURCE_JS}
 
-async function run(job) {
+async function run(job, kitUrl) {
   switch (job.kind) {
     case "payout-invariance": {
-      const { assertPayoutInvariance } = await import("payout-invariance-kit");
+      const { assertPayoutInvariance } = await import(kitUrl);
       const rankFn = buildFunctionFromSource(job.rankFnSource, "rankFnSource");
       const scenarios = job.mutations.map((m) => ({
         name: m.name,
@@ -119,7 +169,7 @@ async function run(job) {
       return assertPayoutInvariance(rankFn, job.baseInput, scenarios);
     }
     case "mutation-invariance": {
-      const { assertInvariance } = await import("mutation-invariance-kit");
+      const { assertInvariance } = await import(kitUrl);
       const fn = buildFunctionFromSource(job.fnSource, "fnSource");
       const scenarios = job.scenarios.map((s) => ({
         name: s.name,
@@ -129,7 +179,7 @@ async function run(job) {
       return assertInvariance(fn, job.baseInput, scenarios);
     }
     case "divergence-group-by": {
-      const { computeDivergence } = await import("advice-ledger-kit");
+      const { computeDivergence } = await import(kitUrl);
       const groupBy = buildFunctionFromSource(job.groupBySource, "config.groupBySource");
       return computeDivergence(job.pairs, Object.assign({}, job.floors, { groupBy }));
     }
@@ -138,7 +188,7 @@ async function run(job) {
   }
 }
 
-run(workerData.job).then(
+run(workerData.job, workerData.kitUrl).then(
   (result) => { parentPort.postMessage({ ok: true, result }); },
   (err) => { parentPort.postMessage({ ok: false, message: err instanceof Error ? err.message : String(err) }); },
 );
@@ -160,7 +210,35 @@ type WorkerMessage<T> = { ok: true; result: T } | { ok: false; message: string }
  */
 export function runFunctionJob<T>(job: FunctionJob, timeoutMs: number = resolveWorkerTimeoutMs()): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const worker = new Worker(WORKER_SOURCE, { eval: true, workerData: { job } });
+    if (!Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > MAX_WORKER_TIMEOUT_MS) {
+      reject(new RangeError(`runFunctionJob: timeoutMs must be from 1 to ${MAX_WORKER_TIMEOUT_MS}.`));
+      return;
+    }
+    let kitUrl: string;
+    try {
+      kitUrl = resolveKitUrl(KIT_FOR_JOB[job.kind]);
+    } catch (err) {
+      reject(err instanceof Error ? err : new Error(String(err)));
+      return;
+    }
+    const worker = new Worker(WORKER_SOURCE, {
+      eval: true,
+      workerData: { job, kitUrl },
+      stdout: true,
+      stderr: true,
+    });
+    // Never let caller output reach this process's stdout (the MCP channel).
+    let forwarded = 0;
+    const forwardToStderr = (chunk: Buffer | string): void => {
+      if (forwarded >= MAX_FORWARDED_OUTPUT_BYTES) return;
+      const text = chunk.toString();
+      const room = MAX_FORWARDED_OUTPUT_BYTES - forwarded;
+      const slice = text.length > room ? `${text.slice(0, room)}\n[honesty-mcp worker] output truncated\n` : text;
+      forwarded += text.length;
+      process.stderr.write(`[honesty-mcp worker] ${slice}`);
+    };
+    worker.stdout.on("data", forwardToStderr);
+    worker.stderr.on("data", forwardToStderr);
     let settled = false;
 
     const timer = setTimeout(() => {
