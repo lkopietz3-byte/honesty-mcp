@@ -5,6 +5,38 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-09-28
+
+### Fixed
+
+- `check_payout_invariance` (runtime mode), `check_mutation_invariance` and
+  `compute_divergence` with `groupBySource` failed with "Cannot find package"
+  whenever the server was launched from a folder that didn't itself have the
+  kits installed. That includes `npx honesty-mcp` and `claude mcp add`. The
+  worker now imports each kit by an absolute URL resolved from honesty-mcp's
+  own install location, not from the working directory.
+- Output printed by caller-supplied code (`console.log`, `console.error`,
+  `process.stdout.write`) could appear on stdout and corrupt the MCP
+  protocol stream. Worker output is now captured and written to stderr,
+  prefixed and capped at 16 KiB per call.
+- `HONESTY_MCP_WORKER_TIMEOUT_MS` accepted values above 2147483647 ms, which
+  Node turns into a 1 ms timer. Such values are now rejected with a clear
+  error.
+
+### Added
+
+- `npm run stdio-probe`: launches the built server as a real stdio process
+  from an empty folder, calls every code-running tool, and checks that every
+  stdout line is JSON-RPC.
+- `npm run verify:installed`: runs the same probe against the packed and
+  installed package. Both now run in `npm run verify` and in CI.
+
+### Changed
+
+- The release workflow must run on a `v*` tag that matches `package.json`
+  (for manual runs too), runs the dependency audit, and fails when the
+  registry state can't be determined instead of assuming "not published".
+
 ## [0.1.0] - 2026-09-24
 
 First release, prepared for its first publish to npm and for listing on the
