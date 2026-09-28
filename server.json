@@ -21,7 +21,7 @@
       "environmentVariables": [
         {
           "name": "HONESTY_MCP_WORKER_TIMEOUT_MS",
-          "description": "Timeout in milliseconds for the worker-thread sandbox that runs caller-supplied JS source (check_payout_invariance runtime mode, check_mutation_invariance, compute_divergence's groupBySource). Defaults to 10000.",
+          "description": "Timeout in milliseconds for the worker thread (a time limit, not a sandbox) that runs caller-supplied JS source (check_payout_invariance runtime mode, check_mutation_invariance, compute_divergence's groupBySource). Defaults to 10000.",
           "isRequired": false,
           "isSecret": false
         }
