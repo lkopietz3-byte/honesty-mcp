@@ -84,11 +84,46 @@ build), but it's why that rename shows up in this server's own git history.
 
 ## Release and rollback
 
-To release: bump `version` in `package.json` AND `SERVER_VERSION` in
-`src/server.ts` (see invariant 4), add a CHANGELOG entry, tag the commit,
-run `npm publish` (which runs `prepublishOnly` -> the full verify pipeline
-first). If also updating the MCP registry listing, bump `server.json`'s
-`version` to match and re-run `mcp-publisher publish` (see README,
-"Listing in the MCP registry"). This server keeps no state of its own, so
-rollback is just pointing the MCP client config at a previous published
-version (`npx honesty-mcp@<version>`) or a previous tagged build.
+`npm run verify` (lint, typecheck, test, build, smoke) runs automatically before publish via
+the `prepublishOnly` script, so a broken build cannot reach the registry by accident. To
+release: bump `version` in `package.json` AND `SERVER_VERSION` in `src/server.ts` (see
+invariant 4), add a dated `CHANGELOG.md` entry, commit, and push a `vX.Y.Z` tag that matches
+the new version — `.github/workflows/release.yml` then installs, verifies, and publishes it.
+(You can also run `npm publish` locally; `prepublishOnly` still guards it.) If also updating
+the MCP registry listing, bump `server.json`'s `version` to match and re-run
+`mcp-publisher publish` (see README, "Listing in the MCP registry").
+
+npm's unpublish policy is deliberately narrow. Within 72 hours of publishing, a version can be
+unpublished only if no other published package depends on it. After 72 hours, unpublishing also
+requires fewer than 300 downloads in the last week and a single maintainer — most released
+versions won't qualify either way. A given `name@version` can never be reused, published or
+not, even after an unpublish. Treat unpublish as unavailable: prefer fixing forward with a new
+patch version, and use `npm deprecate <name>@"<range>" "<message>"` to warn consumers off a bad
+release. This server keeps no state of its own, so rollback for a consumer is just pointing
+their MCP client config at a previous published version (`npx honesty-mcp@<version>`) or a
+previous tagged build.
+
+### Runtime support policy
+
+- **Supported (recommended for production):** Node 22 and 24 LTS; Node 26 current.
+- **Compatibility-tested:** Node 20. Node 20 is end-of-life — nodejs.org's release page
+  (<https://nodejs.org/en/about/previous-releases>) lists it as `EOL`, with its final release
+  dated Mar 24, 2026. The `compat` job in `verify.yml` still runs on Node 20 to catch
+  regressions, but that runtime gets no security fixes upstream; don't run production traffic
+  on it.
+- CommonJS `require()` of this package needs Node >=20.19 or >=22.12 (`require(esm)`
+  support). ESM `import` works on every version this package tests (20, 22, 24).
+- `engines` in `package.json` is unchanged by this policy.
+
+### Publishing with provenance
+
+`.github/workflows/release.yml` publishes using npm trusted publishing: it triggers on
+`workflow_dispatch` or a pushed `v*` tag, requests a short-lived OIDC token instead of
+reading a stored npm token (`permissions: id-token: write`), and runs a plain `npm publish`
+with no token and no `--provenance` flag, because provenance attestation is generated
+automatically under trusted publishing. Before publishing, the workflow confirms the tag
+matches `package.json`'s `version` and checks whether that version is already on the
+registry, so re-running it on a version that's already published is a no-op rather than an
+error. Trusted publishing must be configured for this package on npmjs.com (linking it to this
+GitHub repository and the `release.yml` workflow) before the first automated release will
+work.
