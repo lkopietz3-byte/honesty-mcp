@@ -44,7 +44,12 @@ const recommendationSchema = z.object({
       "Stable identifier for this recommendation. `decision.recommendationId` must equal this exactly, or grading is " +
         "refused. An id that shows nothing (empty, whitespace or invisible characters only) is a tool error.",
     ),
-  subjectId: z.string().describe("What the advice is about: a project, a machine, a queue, an account."),
+  subjectId: z
+    .string()
+    .describe(
+      "What the advice is about: a project, a machine, a queue, an account. A subjectId that shows nothing " +
+        "(empty, whitespace or invisible characters only) is a tool error.",
+    ),
   checkKey: z
     .string()
     .describe(
@@ -72,7 +77,12 @@ const recommendationSchema = z.object({
 });
 
 const decisionSchema = z.object({
-  recommendationId: z.string().describe("Must equal recommendation.id, or grading is refused with 'decision_recommendation_mismatch'."),
+  recommendationId: z
+    .string()
+    .describe(
+      "Must equal recommendation.id, or grading is refused with 'decision_recommendation_mismatch'. A " +
+        "recommendationId that shows nothing (empty, whitespace or invisible characters only) is a tool error.",
+    ),
   status: z.enum(["adopted", "dismissed"]).describe("Whether the human took the advice."),
   decidedAt: z
     .string()

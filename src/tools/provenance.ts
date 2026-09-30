@@ -43,8 +43,8 @@ export function registerProvenanceTool(server: McpServer): void {
         "factual-sounding claims before it ships. The default phrase list is a small starter list, not a " +
         "taxonomy -- it will miss phrases it doesn't know about (e.g. 'clinically proven', 'third-party " +
         "tested'); extend `certaintyPhrases` for your domain. A negation word ('not', 'without', ...) " +
-        "suppresses a match only inside the same clause (a comma, semicolon, period, colon, !, ?, dash or " +
-        "line break ends it), after the last 'and'/'but', and within `negationWindow` characters. It is a " +
+        "suppresses a match only inside the same clause (a comma, semicolon, period, colon, !, ?, em or en " +
+        "dash, or line break ends it; a plain hyphen does not), after the last 'and'/'but', and within `negationWindow` characters. It is a " +
         "window, not a parser, so it can still suppress an overclaim the negation does not govern. An empty " +
         "result means no wording offenses were found under the configured rules; it does not verify the claims.",
       inputSchema: {

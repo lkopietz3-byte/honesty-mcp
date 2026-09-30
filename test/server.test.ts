@@ -305,6 +305,7 @@ describe("check_provenance_claims (provenance-kit)", () => {
     const description = tools.find((tool) => tool.name === "check_provenance_claims")?.description ?? "";
     expect(description).not.toMatch(/150|one incident|live site/);
     expect(description).toContain("inside the same clause");
+    expect(description).toContain("em or en dash");
   });
 
   it("flags an unbacked '(verified)' claim", async () => {
@@ -635,6 +636,25 @@ describe("score_trust_identified / assess_anonymous_authenticity (trust-core)", 
     expect(parseSummary(result)).toContain("0 eligible of 1 submitted signal(s)");
   });
 
+  it("rejects a derived overflow as a tool error instead of clamping the score to 100", async () => {
+    const result = (await client.callTool({
+      name: "score_trust_identified",
+      arguments: { signals: [identSignal("a", "verified")], now: trustNow, prior: 60, dial: 1e308 },
+    })) as { isError?: boolean; content?: { text?: string }[] };
+    expect(result.isError).toBe(true);
+    expect(result.content?.[0]?.text).toContain("is not a finite number");
+  });
+
+  it("gives an anonymous signal with an unlisted source type no weight", async () => {
+    const result = await client.callTool({
+      name: "assess_anonymous_authenticity",
+      arguments: { signals: [{ ...anonSignal("r1", 1), source: "not-in-the-table" }], now: trustNow },
+    });
+    const data = parseJson(result);
+    expect(data).toMatchObject({ signalCount: 1, eligibleSignalCount: 0, trustScore: null });
+    expect(parseSummary(result)).toContain("No evidence-backed assessment");
+  });
+
   it("scores identified evidence from the eligible signals only when weights are mixed", async () => {
     const result = await client.callTool({
       name: "score_trust_identified",
@@ -849,6 +869,18 @@ describe("grade_decision (advice-ledger-kit)", () => {
       expect(result.content?.[0]?.text).toContain(JSON.stringify(decidedAt));
     },
   );
+
+  it.each([
+    ["recommendation.subjectId", { recommendation: { ...recommendation, subjectId: "" }, decision }],
+    ["decision.recommendationId", { recommendation, decision: { ...decision, recommendationId: "" } }],
+  ])("rejects a blank %s as a tool error (it used to be a refused grade)", async (field, args) => {
+    const result = (await client.callTool({
+      name: "grade_decision",
+      arguments: { ...args, observations: [] },
+    })) as { isError?: boolean; content?: { text?: string }[] };
+    expect(result.isError).toBe(true);
+    expect(result.content?.[0]?.text).toContain(`${field} must not be blank`);
+  });
 
   it("rejects a recommendation id that shows nothing as a tool error", async () => {
     const result = (await client.callTool({

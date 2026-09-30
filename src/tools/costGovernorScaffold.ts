@@ -127,7 +127,9 @@ export function registerCostGovernorScaffoldTool(server: McpServer): void {
           input_rules:
             "Pricing tables, rates and usage records must be plain objects, and a model id must be a string that " +
             "is in your pricing table. Anything else (a Map, a class instance, a non-string or unknown model) throws " +
-            "instead of being priced at zero.",
+            "instead of being priced at zero. The strict withCapacityReservation path also requires a plain request " +
+            "object with a non-blank key and operationId, and the adapter must return a non-blank reservation id; it " +
+            "throws otherwise. withReserveConfirm does not check its key: your UsageLedger decides what a valid key is.",
           threePieces: [
             "1. pricing.ts / estimateCostUsd -- cache-aware cost math (cache_read, cache_creation_5m, cache_creation_1h priced as separate line items, never collapsed). Cache reads are priced at a fixed 0.1x by default, which over-estimates models with a lower real cache-read rate, unless you set ModelRates.cacheReadPerMillion to that model's real per-million cache-read price -- it replaces the 0.1x ratio entirely for that call.",
             "2. preCallCeiling.ts / checkPreCallCeiling -- checks an ESTIMATED next-call cost against caller-supplied spend-so-far and rates before the call (rates always passed in live, never a hardcoded default). It is only as good as the estimate and cannot coordinate concurrent requests.",

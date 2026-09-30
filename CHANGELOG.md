@@ -31,6 +31,9 @@ are now tool errors, so this is a minor (0.x) release.
 - `corroborate_evidence`: the summary and description lead with the kit's
   own `direction` field. A `confirmed` verdict with direction `contradicts`
   means the evidence strongly contradicts the claim.
+- `assess_anonymous_authenticity`: a signal whose `source` is not in
+  `sourceWeights` now has credibility 0 and carries no weight (trust-core
+  0.2.0). Previously it still counted toward the score.
 - `check_grounding`: summaries separate structural cleanliness from truth and
   report checked units and placeholders.
 - `check_claims_registry`: the description no longer says `check_grounding`
@@ -60,7 +63,13 @@ are now tool errors, so this is a minor (0.x) release.
   `now` follows the kit's own `verifiedAt` rules. Claim ids that show nothing
   (empty, whitespace or invisible characters) are rejected by the kit.
 - `grade_decision`: `decidedAt` or a matching `observedAt` outside the strict
-  grammar, and recommendation ids that show nothing, are rejected by the kit.
+  grammar is rejected by the kit. So is a `recommendation.id`,
+  `recommendation.subjectId` or `decision.recommendationId` that shows nothing
+  (empty, whitespace or invisible characters); these used to return a
+  `refused` grade.
+- `score_trust_identified`: inputs that make a derived value overflow (for
+  example `dial: 1e308`, or a huge weight) are rejected instead of being
+  clamped to a score of 100.
 - `corroborate_evidence`: a `source` made only of whitespace, control,
   invisible formatting characters or the braille blank.
 - `verify_audit_chain`: an `anchor.entryHash` made only of whitespace or

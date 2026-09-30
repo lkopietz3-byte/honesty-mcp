@@ -68,7 +68,8 @@ export function registerTrustIdentifiedTool(server: McpServer): void {
         "an effective (credibility-weighted) sample size, and shrinks the result toward a domain baseline " +
         "('prior') by a configurable dial -- thin evidence stays close to the prior, deep evidence overrides " +
         "it. Signals whose combined weight is 0 contribute nothing; when no signal carries weight, confidence is " +
-        "'insufficient' and the score equals the prior. Use this for trust/reputation scores backed by " +
+        "'insufficient' and the score equals the prior. Inputs that push a derived value past a finite number " +
+        "(for example an enormous dial or weight) are a tool error. Use this for trust/reputation scores backed by " +
         "attributable evidence. For unattributed/scraped " +
         "signals with no identity behind them, use assess_anonymous_authenticity instead.",
       inputSchema: {

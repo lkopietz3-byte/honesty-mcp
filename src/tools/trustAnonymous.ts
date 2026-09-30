@@ -15,7 +15,8 @@ const signalSchema = z.object({
     .string()
     .describe(
       "Key into config.sourceWeights -- the source type. The library's illustrative example uses " +
-        "'forum'|'community'|'marketplace'|'aggregator'|'blog'|'social'; supply your own via `config.sourceWeights`.",
+        "'forum'|'community'|'marketplace'|'aggregator'|'blog'|'social'; supply your own via `config.sourceWeights`. " +
+        "A source type that is not in sourceWeights has credibility 0, so that signal carries no weight.",
     ),
   sentiment: z.number().min(-1).max(1).describe("Net sentiment, -1 to 1."),
   confidence: z.number().min(0).max(1).describe("Extraction/observation confidence, 0 to 1."),
