@@ -1,7 +1,7 @@
 // check_grounding — wraps grounding-kit's classifyDocument.
 //
 // Content-checking shape: hand it AI-generated text plus the evidence map
-// it's supposed to be citing, get back a per-sentence verdict.
+// it's supposed to be citing, get back a verdict for each checked unit.
 
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -15,16 +15,16 @@ export function registerGroundingTool(server: McpServer): void {
     {
       title: "Check citation grounding",
       description:
-        "Detects ungrounded or forged citations in AI-generated text. Splits `text` into sentences and " +
-        "classifies each one against `evidence`: 'grounded' (cites a marker whose evidence plausibly " +
-        "supports it), 'placeholder' (an honest 'TBD'/unknown gap, no fake citation), 'ungrounded' (a claim " +
-        "with no citation at all), or 'invalid' (cites a marker id that is missing from `evidence`, or whose " +
-        "evidence doesn't plausibly support the sentence under the default matcher -- i.e. a forged or " +
-        "hallucinated citation; this outranks every other status). This is a mechanical/structural check, not " +
+        "Checks citation markers and lexical support in AI-generated text. Splits `text` into checked units and " +
+        "classifies each one against `evidence`: 'grounded' (cites a marker accepted by the default lexical " +
+        "support matcher), 'placeholder' (an honest '[TK]'/'[citation needed]' gap), 'ungrounded' (an uncited " +
+        "unit without a placeholder), or 'invalid' (cites a marker id that is missing from `evidence`, or " +
+        "whose evidence is rejected by the default support matcher; this outranks every other status). " +
+        "An invalid result does not establish that a citation was fabricated. This is a mechanical/structural check, not " +
         "a truth checker: the default support check is naive substring/word-overlap matching, not semantic " +
         "entailment -- it can pass a coincidental word match and can fail a genuine paraphrase, and it cannot " +
         "verify that the evidence itself is true. Use this before shipping any AI-written report, summary, or " +
-        "answer that cites sources, to catch a model inventing or misattributing a citation. Treat any " +
+        "answer that cites sources, to flag citations that need review. Treat any " +
         "'invalid' sentence as a hard stop; treat 'ungrounded' sentences as claims that should probably cite " +
         "something but currently don't. For higher-stakes content, use grounding-kit directly with a custom " +
         "`supports()` function (embedding-similarity or NLI-based) instead of the default matcher.",
@@ -54,10 +54,12 @@ export function registerGroundingTool(server: McpServer): void {
       try {
         const result = classifyDocument(text, evidence);
         const summary = result.isClean
-          ? `Clean: ${result.sentences.length} sentence(s) checked, 0 ungrounded, 0 invalid citations.`
-          : `${result.counts.invalid} invalid (forged/unsupported) citation(s), ` +
-            `${result.counts.ungrounded} ungrounded claim(s), ${result.counts.placeholder} placeholder(s), ` +
-            `${result.counts.grounded} grounded, out of ${result.sentences.length} sentence(s).`;
+          ? `Structurally clean: ${result.sentences.length} checked unit(s), ${result.counts.placeholder} placeholder(s), ` +
+            `${result.counts.grounded} grounded, 0 ungrounded, 0 invalid citations. This does not verify truth or semantic support.`
+          : `${result.counts.invalid} invalid unit(s) (missing evidence or rejected by the default support matcher), ` +
+            `${result.counts.ungrounded} ungrounded unit(s), ${result.counts.placeholder} placeholder(s), ` +
+            `${result.counts.grounded} grounded, out of ${result.sentences.length} checked unit(s). ` +
+            "This does not verify truth or semantic support.";
         return jsonResult(summary, result);
       } catch (err) {
         return errorResult(errorMessage(err));

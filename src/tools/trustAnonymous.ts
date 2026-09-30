@@ -1,8 +1,8 @@
 // assess_anonymous_authenticity — wraps trust-core's anonymous.assessAuthenticity.
 //
 // Use when you don't know who's behind a signal: crawled mentions, imported
-// reviews with no verifiable identity, aggregator feeds. Answers "does this
-// look like real, independent sentiment, or planted buzz?"
+// reviews with no verifiable identity, aggregator feeds. Reports heuristic
+// sentiment patterns; it does not establish independence or fabrication.
 
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -75,8 +75,8 @@ export function registerTrustAnonymousTool(server: McpServer): void {
         "Scores how organic a corpus of UNATTRIBUTED, scraped sentiment signals (crawled mentions, imported " +
         "reviews with no verifiable identity, aggregator feeds) looks, weighing a positive composite of " +
         "consensus/diversity/volume/recency against a heuristic penalty for two specific, cheap manipulation " +
-        "patterns: evidence concentrated in a single source, and suspiciously uniform sentiment (near-maximal " +
-        "with near-zero variance -- the fingerprint of copy-pasted or purchased praise). This is NOT a fraud " +
+        "patterns: evidence concentrated in a single source type, and unusually uniform sentiment (near-maximal " +
+        "with near-zero variance). Neither pattern establishes fabrication. This is NOT a fraud " +
         "or astroturf detector: it cannot show that sentiment is fabricated or that any reviewer is fake, and " +
         "a campaign that varies its wording/sentiment and spreads across several sources isn't caught by " +
         "these two checks. Treat a low score as 'looks statistically unusual in a specific way worth a human " +
@@ -92,7 +92,13 @@ export function registerTrustAnonymousTool(server: McpServer): void {
       try {
         const resolvedConfig = anonymous.resolveAnonymousConfig(config);
         const result = anonymous.assessAuthenticity(signals, resolvedConfig, { now });
-        const summary = `Trust score: ${result.trustScore}/100 across ${result.sourceCount} independent source(s) (confidence: ${result.confidence.level}). ${result.explanation}`;
+        const summary = result.signalCount === 0
+          ? "No submitted evidence. The raw payload contains the kit's default score and confidence. " +
+            "An evidence-backed assessment is unavailable. Independence is not verified."
+          : `Heuristic trust score: ${result.trustScore}/100 across ${result.sourceCount} distinct source type(s) ` +
+            `(confidence: ${result.confidence.level}), from ${result.signalCount} submitted signal(s). ` +
+            `Independence is not verified. Heuristic flags: low source count=${result.flags.lowSourceCount}, ` +
+            `uniform sentiment=${result.flags.uniformSentiment}.`;
         return jsonResult(summary, result);
       } catch (err) {
         return errorResult(errorMessage(err));

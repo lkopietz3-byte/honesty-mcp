@@ -63,7 +63,7 @@ const result = await withReserveConfirm(
   () => callAnthropic(userId, prompt), // a thrown/rejected call never commits locally --
 );                                     // but a timeout may still have billed the provider; reconcile before retrying.
 if (!result.allowed) return send429("Daily limit reached");
-if (result.commitError) {
+if (Object.hasOwn(result, "commitError")) {
   // The call succeeded but recording its usage failed afterward -- the count
   // may now be under-recorded. Log it; do not retry the paid call for this.
   console.error("cost-governor: commitUsage failed after a successful call", result.commitError);

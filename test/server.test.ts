@@ -10,6 +10,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { runInNewContext } from "node:vm";
+import { classifyDocument } from "grounding-kit";
+import { corroborate, type Signal } from "corroboration-kit";
+import { anonymous } from "trust-core";
+import { withReserveConfirm } from "cost-governor-kit";
 import { createServer } from "../src/server.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
@@ -46,6 +51,16 @@ function parseJson(result: unknown): any {
   return JSON.parse(block.text);
 }
 
+function parseSummary(result: unknown): string {
+  const r = result as { isError?: boolean; content?: { type: string; text?: string }[] };
+  expect(r.isError).not.toBe(true);
+  const block = r.content?.[0];
+  if (!block || block.type !== "text" || typeof block.text !== "string") {
+    throw new Error("expected a first (summary) text content block");
+  }
+  return block.text;
+}
+
 describe("tool listing", () => {
   it("lists all 14 registered tools with the expected names", async () => {
     const { tools } = await client.listTools();
@@ -79,6 +94,37 @@ describe("tool listing", () => {
 });
 
 describe("check_grounding (grounding-kit)", () => {
+  it("describes a rejected paraphrase as a matcher result, without alleging fabrication", async () => {
+    const text = "The bank approved the loan application [[cite:a]].";
+    const evidence = { a: "The lender accepted the financing request." };
+    const expected = classifyDocument(text, evidence);
+    expect(expected.counts.invalid).toBe(1);
+    const result = await client.callTool({ name: "check_grounding", arguments: { text, evidence } });
+    expect(parseJson(result)).toEqual(expected);
+    expect(parseSummary(result)).toContain("rejected by the default support matcher");
+    expect(parseSummary(result)).toContain(`${expected.sentences.length} checked unit(s)`);
+    expect(parseSummary(result)).not.toMatch(/forged|hallucinated/);
+    const { tools } = await client.listTools();
+    expect(tools.find((tool) => tool.name === "check_grounding")?.description).not.toContain("i.e. a forged");
+  });
+
+  it.each([
+    "[citation needed].",
+    "The bridge was completed in 1932 [[cite:1]]. [TK].",
+  ])("reports structural cleanliness and visible gaps for %s", async (text) => {
+    const evidence = { "1": "Construction of the bridge finished in 1932." };
+    const expected = classifyDocument(text, evidence);
+    expect(expected.isClean).toBe(true);
+    expect(expected.counts.placeholder).toBe(1);
+    const result = await client.callTool({ name: "check_grounding", arguments: { text, evidence } });
+    expect(parseJson(result)).toEqual(expected);
+    const summary = parseSummary(result);
+    expect(summary).toContain("Structurally clean:");
+    expect(summary).toContain(`${expected.sentences.length} checked unit(s)`);
+    expect(summary).toContain("1 placeholder(s)");
+    expect(summary).toContain("does not verify truth or semantic support");
+  });
+
   it("flags a forged / unsupported citation as invalid", async () => {
     const result = await client.callTool({
       name: "check_grounding",
@@ -321,6 +367,50 @@ describe("check_mutation_invariance (mutation-invariance-kit)", () => {
 });
 
 describe("corroborate_evidence (corroboration-kit)", () => {
+  it("counts normalized URL identities once and documents that normalization", async () => {
+    const signals: Signal[] = ["https://EXAMPLE.com/doc#s1", "https://example.com:443/doc#s2"].map((source) => ({
+      source, kind: "structural", vote: "supports", detail: "Synthetic observation",
+    }));
+    const expected = corroborate(signals, "strong");
+    expect(expected.supports).toBe(1);
+    expect(expected.verdict).toBe("likely");
+    const result = await client.callTool({ name: "corroborate_evidence", arguments: { signals, coverage: "strong" } });
+    expect(parseJson(result)).toEqual(expected);
+    expect(parseSummary(result)).toContain("1 supporting source(s)");
+    const { tools } = await client.listTools();
+    expect(tools.find((tool) => tool.name === "corroborate_evidence")?.description).toContain("normalized source identities");
+  });
+
+  it.each([
+    ["supports", "strong", ["supports", "supports"], "confirmed"],
+    ["contradicts", "strong", ["contradicts", "contradicts"], "confirmed"],
+    ["mixed", "strong", ["supports", "contradicts"], "mixed"],
+    ["none", "strong", [], "not-found"],
+    ["none", "thin", [], "inconclusive"],
+    ["contradicts", "thin", ["contradicts", "contradicts"], "likely"],
+    ["supports", "thin", ["supports", "supports"], "likely"],
+    ["contradicts", "partial", ["contradicts", "contradicts"], "confirmed"],
+  ] as const)("leads with %s direction under %s coverage while retaining the raw kit result", async (direction, coverage, votes, verdict) => {
+    const signals: Signal[] = votes.map((vote, index) => ({
+      source: `artifact-${index}`,
+      kind: "structural",
+      vote,
+      detail: "Synthetic observation",
+    }));
+    const expected = corroborate(signals, coverage);
+    expect(expected.verdict).toBe(verdict);
+    const result = await client.callTool({ name: "corroborate_evidence", arguments: { signals, coverage } });
+    expect(parseJson(result)).toEqual(expected);
+    expect(parseSummary(result)).toMatch(new RegExp(`^Evidence direction: ${direction} -- verdict: ${verdict}`));
+  });
+
+  it("describes confirmed contradiction as a possible result", async () => {
+    const { tools } = await client.listTools();
+    const description = tools.find((tool) => tool.name === "corroborate_evidence")?.description;
+    expect(description).toContain("supporting OR contradicting");
+    expect(description).toContain("Independence is not verified");
+  });
+
   it("requires a non-textual signal to reach 'confirmed'", async () => {
     const textOnly = await client.callTool({
       name: "corroborate_evidence",
@@ -362,6 +452,30 @@ describe("corroborate_evidence (corroboration-kit)", () => {
 });
 
 describe("score_trust_identified / assess_anonymous_authenticity (trust-core)", () => {
+  it("labels an empty anonymous corpus as no evidence while preserving the kit's default payload", async () => {
+    const now = "2026-01-02T00:00:00.000Z";
+    const expected = anonymous.assessAuthenticity([], anonymous.resolveAnonymousConfig(), { now });
+    const result = await client.callTool({ name: "assess_anonymous_authenticity", arguments: { signals: [], now } });
+    expect(parseJson(result)).toEqual(expected);
+    expect(parseSummary(result)).toContain("No submitted evidence");
+    expect(parseSummary(result)).toContain("kit's default score and confidence");
+    expect(parseSummary(result)).not.toMatch(/trust score: \d+\/100/i);
+  });
+
+  it("reports source types without claiming their independence or changing the kit payload", async () => {
+    const signals = [
+      { id: "r1", source: "marketplace", sentiment: 0.9, confidence: 1, publishedAt: "2026-01-01" },
+      { id: "r2", source: "marketplace", sentiment: 0.8, confidence: 1, publishedAt: "2026-01-01" },
+    ];
+    const now = "2026-01-02T00:00:00.000Z";
+    const expected = anonymous.assessAuthenticity(signals, anonymous.resolveAnonymousConfig(), { now });
+    const result = await client.callTool({ name: "assess_anonymous_authenticity", arguments: { signals, now } });
+    expect(parseJson(result)).toEqual(expected);
+    expect(parseSummary(result)).toContain("1 distinct source type(s)");
+    expect(parseSummary(result)).toContain("Independence is not verified");
+    expect(parseSummary(result)).not.toMatch(/independent source/);
+  });
+
   it("shrinks a thin-evidence score toward the prior", async () => {
     const result = await client.callTool({
       name: "score_trust_identified",
@@ -443,6 +557,23 @@ describe("check_claims_registry (claims-registry-kit)", () => {
 });
 
 describe("append_audit_entry / verify_audit_chain (audit-chain-kit)", () => {
+  it.each(["", " \t\n", "\u200b", "\u2066", "\u034f", " \u115f "])("rejects a blank or invisible-only anchor hash %j as an input error", async (entryHash) => {
+    const result = await client.callTool({
+      name: "verify_audit_chain",
+      arguments: { chain: [], anchor: { index: 0, entryHash } },
+    });
+    const r = result as { isError?: boolean; content?: { text?: string }[] };
+    expect(r.isError).toBe(true);
+    expect(r.content?.[0]?.text).toMatch(/anchor|entryHash/);
+    const appended = parseJson(await client.callTool({
+      name: "append_audit_entry", arguments: { chain: [], payload: { event: "synthetic recovery" } },
+    }));
+    const recovered = parseJson(await client.callTool({
+      name: "verify_audit_chain", arguments: { chain: appended.chain, anchor: { index: 0, entryHash: appended.newEntry.entryHash } },
+    }));
+    expect(recovered.valid).toBe(true);
+  });
+
   it("builds a chain and confirms tampering is detected", async () => {
     const first = parseJson(
       await client.callTool({ name: "append_audit_entry", arguments: { chain: [], payload: { event: "created" } } }),
@@ -644,6 +775,42 @@ describe("compute_divergence (advice-ledger-kit)", () => {
 });
 
 describe("scaffold tools (agent-receipt-kit, cost-governor-kit)", () => {
+  it.each([
+    { name: "undefined", commitError: undefined },
+    { name: "null", commitError: null },
+    { name: "false", commitError: false },
+    { name: "zero", commitError: 0 },
+    { name: "empty string", commitError: "" },
+    { name: "NaN", commitError: NaN },
+  ])("the generated cost guard recognizes a commit rejection of $name", async ({ commitError }) => {
+    const scaffold = parseJson(await client.callTool({
+      name: "scaffold_cost_governor",
+      arguments: { includeWorkedExample: false },
+    }));
+    const snippet: string = scaffold.starterSnippet;
+    const guard = snippet.match(/if \((.+)\) \{\n {2}\/\/ The call succeeded/);
+    if (!guard?.[1]) throw new Error("starter snippet has no post-call commit failure guard");
+    const rejectCommit = async (failure: unknown): Promise<void> => { throw failure; };
+    const result = await withReserveConfirm({
+      checkUnderLimit: () => Promise.resolve(true),
+      commitUsage: () => rejectCommit(commitError),
+    }, "synthetic-key", 1, () => Promise.resolve("synthetic successful call"));
+    expect(result.allowed).toBe(true);
+    expect(result.result).toBe("synthetic successful call");
+    if (!result.allowed) throw new Error("synthetic ledger unexpectedly rejected the call");
+    expect(Object.hasOwn(result, "commitError")).toBe(true);
+    expect(result.commitError).toBe(commitError);
+    // Execute only the generated guard expression, never the DB/provider starter code.
+    const recognized: unknown = runInNewContext(guard[1], { result }, { timeout: 100 });
+    expect(recognized).toBe(true);
+    const success = await withReserveConfirm({
+      checkUnderLimit: () => Promise.resolve(true),
+      commitUsage: () => Promise.resolve(),
+    }, "synthetic-key", 1, () => Promise.resolve("synthetic successful call"));
+    const falselyReported: unknown = runInNewContext(guard[1], { result: success }, { timeout: 100 });
+    expect(falselyReported).toBe(false);
+  });
+
   it("scaffold_agent_receipts returns guidance plus a live accepted/rejected worked example", async () => {
     const result = await client.callTool({ name: "scaffold_agent_receipts", arguments: {} });
     const data = parseJson(result);
