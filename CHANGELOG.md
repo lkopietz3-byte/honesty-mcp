@@ -67,9 +67,9 @@ are now tool errors, so this is a minor (0.x) release.
   `recommendation.subjectId` or `decision.recommendationId` that shows nothing
   (empty, whitespace or invisible characters); these used to return a
   `refused` grade.
-- `score_trust_identified`: inputs that make a derived value overflow (for
-  example `dial: 1e308`, or a huge weight) are rejected instead of being
-  clamped to a score of 100.
+- `score_trust_identified`: inputs that make a derived value overflow are
+  rejected. Before, a huge `dial` (for example `1e308`) returned a score
+  clamped to 100, and very large weights could return `NaN` or `Infinity`.
 - `corroborate_evidence`: a `source` made only of whitespace, control,
   invisible formatting characters or the braille blank.
 - `verify_audit_chain`: an `anchor.entryHash` made only of whitespace or
