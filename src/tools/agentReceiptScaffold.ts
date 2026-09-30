@@ -85,17 +85,14 @@ export function registerAgentReceiptScaffoldTool(server: McpServer): void {
               "agent. There is nothing standing content for this MCP server to 'check' the way check_grounding " +
               "checks a document -- the pattern has to be wired into your own code.",
           install: {
-            note:
-              "This kit is currently only available as a local sibling directory (monorepo-adjacent setup, " +
-                "not yet published to npm) -- see this server's own README.md.",
-            local_dev: "npm install agent-receipt-kit@file:../agent-receipt-kit",
-            once_published: "npm install agent-receipt-kit",
+            note: "Published on npm. Node >= 20.19 or >= 22.12 is needed if you load it with require().",
+            command: "npm install agent-receipt-kit",
           },
           pattern: [
             "1. Before the agent runs: issuePacket(scope, authorityLevel, allowedActions, evidenceIds) -> WorkPacket.",
             "2. Hand the agent its authority (packet.id/scope/authorityLevel/allowedActions/evidenceIds) as instructions.",
             "3. After the agent reports back: verifyReceipt(packet, claim, currentState?) -> ReceiptResult.",
-            "4. Only trust claim.accepted === true. Log receipt.reason either way -- it's human-readable.",
+            "4. Act only on receipt.accepted === true, and read it as 'no mismatch found against the packet and supplied state', not as verified truth. Check receipt.coverage for which claimed facts were actually compared. Log receipt.reason either way -- it's human-readable.",
             "5. Optional: createRefutationTrail to keep a running history of claims that got refuted.",
           ],
           starterSnippet: STARTER_SNIPPET,

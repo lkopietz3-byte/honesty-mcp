@@ -5,6 +5,79 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-09-30
+
+Upgrades every wrapped kit to its audited release and brings the tool text in
+line with what each kit actually checks. Some inputs the server used to accept
+are now tool errors, so this is a minor (0.x) release.
+
+### Changed
+
+- Kit dependencies: claims-registry-kit `^0.3.0`; grounding-kit,
+  corroboration-kit, payout-invariance-kit, mutation-invariance-kit,
+  trust-core, provenance-kit, audit-chain-kit, advice-ledger-kit,
+  agent-receipt-kit and cost-governor-kit `^0.2.0`.
+- `assess_anonymous_authenticity`: when no signal carries weight (zero
+  confidence, zero source weight or fully decayed recency), the kit reports
+  `trustScore: null` with `insufficient` confidence. The summary now says no
+  evidence-backed assessment is available and gives the kit's reason, instead
+  of printing a default score. Summaries show eligible vs submitted signal
+  counts and forward the kit's explanation. The description uses pattern
+  language only: it does not detect fabrication or verify independence.
+- `score_trust_identified`: with no weighted evidence, the summary says the
+  score is the supplied prior, not a measured score, and shows the
+  `insufficient` confidence reason. Summaries show eligible vs submitted
+  signal counts.
+- `corroborate_evidence`: the summary and description lead with the kit's
+  own `direction` field. A `confirmed` verdict with direction `contradicts`
+  means the evidence strongly contradicts the claim.
+- `assess_anonymous_authenticity`: a signal whose `source` is not in
+  `sourceWeights` now has credibility 0 and carries no weight (trust-core
+  0.2.0). Previously it still counted toward the score.
+- `check_grounding`: summaries separate structural cleanliness from truth and
+  report checked units and placeholders.
+- `check_claims_registry`: the description no longer says `check_grounding`
+  can confirm that evidence supports a claim. The text summary escapes
+  control and bidi characters as `\uXXXX`; the JSON report keeps raw strings.
+- `check_provenance_claims`: removed the unsupported incident wording from the
+  description, described the clause-bounded negation rule, and a clean result
+  now reads "no wording offenses found under the configured rules (this does
+  not verify the claims)".
+- `grade_decision` / `compute_divergence`: descriptions give the kit's strict
+  date grammar (`YYYY-MM-DD` is UTC midnight; timestamps need seconds and an
+  explicit zone) instead of "compared as strings". Divergence summaries show
+  the required counts and use the kit's new wording, including the non-causal
+  note.
+- `scaffold_agent_receipts`: step 4 says to act on `receipt.accepted` and
+  read it as "no mismatch found", not verified truth, and points to
+  `receipt.coverage`. Both scaffold tools now give `npm install` as the
+  install step, since every kit is on npm.
+- `scaffold_cost_governor`: the starter snippet detects `commitError` with
+  `Object.hasOwn`, so a falsy rejection value is not missed, and the guidance
+  lists the kit's plain-object and model-id input rules.
+
+### Now rejected (tool errors instead of results)
+
+- `check_claims_registry` `now`: a timestamp without a zone, or an impossible
+  date, is rejected instead of being read as local time or rolled forward.
+  `now` follows the kit's own `verifiedAt` rules. Claim ids that show nothing
+  (empty, whitespace or invisible characters) are rejected by the kit.
+- `grade_decision`: `decidedAt` or a matching `observedAt` outside the strict
+  grammar is rejected by the kit. So is a `recommendation.id`,
+  `recommendation.subjectId` or `decision.recommendationId` that shows nothing
+  (empty, whitespace or invisible characters); these used to return a
+  `refused` grade.
+- `score_trust_identified`: inputs that make a derived value overflow are
+  rejected. Before, a huge `dial` (for example `1e308`) returned a score
+  clamped to 100, and very large weights could return `NaN` or `Infinity`.
+- `corroborate_evidence`: a `source` made only of whitespace, control,
+  invisible formatting characters or the braille blank.
+- `verify_audit_chain`: an `anchor.entryHash` made only of whitespace or
+  invisible characters.
+- `check_payout_invariance` (`static-imports`): an empty `files` list or map
+  (previously reported CLEAN over 0 files), or a blank payout identifier.
+- `check_grounding`: `text` longer than 2,000,000 characters.
+
 ## [0.1.1] - 2026-09-28
 
 ### Fixed

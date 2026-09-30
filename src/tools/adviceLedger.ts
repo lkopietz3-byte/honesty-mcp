@@ -40,21 +40,31 @@ import { errorMessage, errorResult, jsonResult } from "../lib/result.js";
 const recommendationSchema = z.object({
   id: z
     .string()
-    .describe("Stable identifier for this recommendation. `decision.recommendationId` must equal this exactly, or grading is refused."),
-  subjectId: z.string().describe("What the advice is about: a project, a machine, a queue, an account."),
+    .describe(
+      "Stable identifier for this recommendation. `decision.recommendationId` must equal this exactly, or grading is " +
+        "refused. An id that shows nothing (empty, whitespace or invisible characters only) is a tool error.",
+    ),
+  subjectId: z
+    .string()
+    .describe(
+      "What the advice is about: a project, a machine, a queue, an account. A subjectId that shows nothing " +
+        "(empty, whitespace or invisible characters only) is a tool error.",
+    ),
   checkKey: z
     .string()
     .describe(
       "The thing later observations report on -- this is what makes a recommendation gradeable at all. " +
-        "An empty/whitespace-only checkKey is always refused ('no_gradeable_check_key'), since no observation " +
+        "A checkKey that shows nothing (empty, whitespace, or zero-width/bidi control characters only) is always " +
+        "refused ('no_gradeable_check_key'), since no observation " +
         "could ever be matched back to it.",
     ),
   proposedAt: z
     .string()
     .describe(
-      "ISO-8601 timestamp the recommendation was proposed. Use one consistent format for every proposedAt/" +
-        "decidedAt/observedAt in a given ledger -- dates are compared as strings, and mixing 'YYYY-MM-DD' with " +
-        "a full timestamp compares wrongly.",
+      "When the recommendation was proposed. Recorded for your own ledger; grading does not read it. Use the " +
+        "same format as decidedAt/observedAt: a calendar date 'YYYY-MM-DD' (read as UTC midnight) or a timestamp " +
+        "with seconds and an explicit zone ('2026-02-01T09:30:00Z', '2026-02-01T10:30:00+01:00'), at most three " +
+        "fractional digits.",
     ),
   basis: z
     .enum(["observed", "model-proposed"])
@@ -67,13 +77,21 @@ const recommendationSchema = z.object({
 });
 
 const decisionSchema = z.object({
-  recommendationId: z.string().describe("Must equal recommendation.id, or grading is refused with 'decision_recommendation_mismatch'."),
+  recommendationId: z
+    .string()
+    .describe(
+      "Must equal recommendation.id, or grading is refused with 'decision_recommendation_mismatch'. A " +
+        "recommendationId that shows nothing (empty, whitespace or invisible characters only) is a tool error.",
+    ),
   status: z.enum(["adopted", "dismissed"]).describe("Whether the human took the advice."),
   decidedAt: z
     .string()
     .min(1, "decidedAt must not be empty -- the kit treats an empty string as invalid, not as an unknown timestamp.")
     .describe(
-      "ISO-8601 timestamp of the human's call. Observations strictly before this form the baseline window; " +
+      "When the human made the call: a calendar date 'YYYY-MM-DD' (read as UTC midnight) or a timestamp with " +
+        "seconds and an explicit zone ('2026-02-01T09:30:00Z' or '+hh:mm'), at most three fractional digits. Any " +
+        "other value (no zone, no seconds, an impossible date) is a tool error; nothing is guessed. Instants are " +
+        "compared, not text. Observations strictly before this form the baseline window; " +
         "observations strictly after (and exposed) form the result window; observations timestamped exactly " +
         "at this instant are counted (`atBoundaryObservations`) but grade neither window. Must be non-empty.",
     ),
@@ -86,7 +104,11 @@ const observationSchema = z.object({
   observedAt: z
     .string()
     .min(1, "observedAt must not be empty -- the kit treats an empty string as invalid, not as an unknown timestamp.")
-    .describe("ISO-8601 timestamp of this reading. Compared as a string against decidedAt -- use one consistent format. Must be non-empty."),
+    .describe(
+      "When this reading was taken, in the same grammar as decidedAt: 'YYYY-MM-DD' (UTC midnight) or a timestamp " +
+        "with seconds and an explicit zone. Compared as an instant against decidedAt, so '2026-02-01T01:00:00+01:00' " +
+        "and '2026-02-01' are the same moment. An invalid value on a matching observation is a tool error.",
+    ),
   exposed: z
     .boolean()
     .optional()
@@ -309,7 +331,7 @@ export function registerAdviceLedgerDivergenceTool(server: McpServer): void {
           result.groups.length > 0
             ? ` Per-group breakdown also computed for ${result.groups.length} group(s).`
             : "";
-        return jsonResult(`${describeDivergence(result.overall)}${groupsNote}`, result);
+        return jsonResult(`${describeDivergence(result.overall, result.thresholds)}${groupsNote}`, result);
       } catch (err) {
         return errorResult(errorMessage(err));
       }

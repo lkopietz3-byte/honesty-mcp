@@ -1,6 +1,6 @@
 {
   "name": "honesty-mcp",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "mcpName": "io.github.lkopietz3-byte/honesty-mcp",
   "description": "MCP server exposing the eleven-kit 'honesty SDK' family (grounding-kit, corroboration-kit, payout-invariance-kit, mutation-invariance-kit, trust-core, provenance-kit, claims-registry-kit, audit-chain-kit, advice-ledger-kit, agent-receipt-kit, cost-governor-kit) as tools any MCP-compatible coding agent can call while building or auditing a product.",
   "keywords": [
@@ -55,17 +55,17 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.1",
     "zod": "^4.0.0",
-    "grounding-kit": "^0.1.1",
-    "corroboration-kit": "^0.1.1",
-    "payout-invariance-kit": "^0.1.1",
-    "mutation-invariance-kit": "^0.1.1",
-    "trust-core": "^0.1.0",
-    "provenance-kit": "^0.1.1",
-    "claims-registry-kit": "^0.2.0",
-    "audit-chain-kit": "^0.1.1",
-    "advice-ledger-kit": "^0.1.1",
-    "agent-receipt-kit": "^0.1.1",
-    "cost-governor-kit": "^0.1.0"
+    "grounding-kit": "^0.2.0",
+    "corroboration-kit": "^0.2.0",
+    "payout-invariance-kit": "^0.2.0",
+    "mutation-invariance-kit": "^0.2.0",
+    "trust-core": "^0.2.0",
+    "provenance-kit": "^0.2.0",
+    "claims-registry-kit": "^0.3.0",
+    "audit-chain-kit": "^0.2.0",
+    "advice-ledger-kit": "^0.2.0",
+    "agent-receipt-kit": "^0.2.0",
+    "cost-governor-kit": "^0.2.0"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

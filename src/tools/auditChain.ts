@@ -97,7 +97,11 @@ export function registerAuditChainTools(server: McpServer): void {
         anchor: z
           .object({
             index: z.number().int().nonnegative().describe("Position of the anchored entry."),
-            entryHash: z.string().min(1).describe("The anchored entry's entryHash, saved from a source the chain's writer cannot edit."),
+            entryHash: z.string().min(1)
+              .refine((value) => !/^[\s\p{Default_Ignorable_Code_Point}]*$/u.test(value), {
+                message: "anchor.entryHash must contain a visible, non-whitespace character",
+              })
+              .describe("The anchored entry's non-blank entryHash, saved from a source the chain's writer cannot edit."),
           })
           .optional()
           .describe(
