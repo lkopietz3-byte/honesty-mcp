@@ -30,7 +30,7 @@ async function main(): Promise<void> {
     console.log(`  - ${tool.name}: ${tool.description?.slice(0, 100)}${(tool.description?.length ?? 0) > 100 ? "..." : ""}`);
   }
 
-  console.log("\nCalling check_grounding with a forged citation as an end-to-end smoke check...");
+  console.log("\nCalling check_grounding with a citation to a missing source as an end-to-end smoke check...");
   const result = await client.callTool({
     name: "check_grounding",
     arguments: {

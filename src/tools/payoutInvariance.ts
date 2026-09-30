@@ -89,13 +89,17 @@ export function registerPayoutInvarianceTool(server: McpServer): void {
             z.record(z.string(), z.string()).describe("Map of path -> file content. No filesystem access."),
           ])
           .optional()
-          .describe("[static-imports mode, required] Source files to scan for payout references."),
+          .describe(
+            "[static-imports mode, required, at least one file] Source files to scan for payout references. An " +
+              "empty list or map is a tool error, never a CLEAN result over zero files.",
+          ),
         payoutIdentifiers: z
           .array(z.string())
           .optional()
           .describe(
             '[static-imports mode, required, non-empty] Identifiers that must never appear in the ranking ' +
-              "engine's source, e.g. \"commission\", \"payout\", \"affiliateRate\".",
+              "engine's source, e.g. \"commission\", \"payout\", \"affiliateRate\". An identifier that is " +
+              "blank (only whitespace or invisible characters) is a tool error.",
           ),
         stripComments: z
           .boolean()

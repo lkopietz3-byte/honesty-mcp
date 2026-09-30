@@ -32,8 +32,9 @@ export function registerGroundingTool(server: McpServer): void {
         text: z
           .string()
           .min(1)
+          .max(2_000_000)
           .describe(
-            "The AI-generated text to check. Citation markers use the kit's default convention " +
+            "The AI-generated text to check (up to 2,000,000 characters). Citation markers use the kit's default convention " +
               '`[[cite:id]]` (e.g. "The bridge opened in 1932 [[cite:source-a]]."). This tool uses the ' +
               "default marker/placeholder patterns; if your generator emits a different citation syntax " +
               "(e.g. \"[1]\"), rewrite markers to `[[cite:1]]` before calling, or use grounding-kit directly " +

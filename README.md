@@ -100,12 +100,12 @@ of these real content or data, get back a structured verdict):
 
 | Tool | Wraps | One-line purpose |
 |---|---|---|
-| `check_grounding` | grounding-kit | Detects ungrounded or forged citations in AI-generated text, sentence by sentence. |
-| `corroborate_evidence` | corroboration-kit | Grades confidence in a claim from independent evidence signals — not a vote count. |
+| `check_grounding` | grounding-kit | Checks citation structure in AI-generated text, sentence by sentence: uncited claims, honest placeholders, and citations whose marker is missing or whose evidence doesn't match lexically. Structural only; it does not verify that the evidence is true. |
+| `corroborate_evidence` | corroboration-kit | Reports the evidence direction (supports / contradicts / mixed / none) and a graded verdict from distinct sources — not a vote count. Independence is not verified, and `confirmed` can mean confirmed-contradicted, so read the direction first. |
 | `check_payout_invariance` | payout-invariance-kit | Checks, for the scenarios you supply, whether a ranking engine's output changes with who pays more (`runtime` mode) or whether payout identifiers appear in its source at all (`static-imports` mode). Not a formal proof for every possible payout configuration. |
 | `check_mutation_invariance` | mutation-invariance-kit | Checks, for the scenarios you supply, whether a decision/score/ranking function's output depends on a variable it claims not to (protected attribute, geography, price, or anything you name). Not a formal proof for every possible input. |
-| `score_trust_identified` | trust-core (`identified`) | Scores an entity from known, identified contributors (reviewer accounts, raters, inspectors). |
-| `assess_anonymous_authenticity` | trust-core (`anonymous`) | Scores unattributed/scraped sentiment on how organic it looks, with a heuristic discount for two specific manipulation patterns (source concentration, suspiciously uniform sentiment) — not a fraud detector. |
+| `score_trust_identified` | trust-core (`identified`) | Scores an entity from known, identified contributors (reviewer accounts, raters, inspectors), shrinking thin evidence toward a prior. With no weighted evidence it returns the prior with `insufficient` confidence, not a measured score. |
+| `assess_anonymous_authenticity` | trust-core (`anonymous`) | Scores unattributed/scraped sentiment on how organic it looks, with a heuristic discount for two specific patterns (source concentration, unusually uniform sentiment). It does not detect fabrication or verify independence, and it reports no score (`trustScore: null`) when no signal carries weight. |
 | `check_provenance_claims` | provenance-kit | Flags certainty-implying language ("(verified)", "guaranteed") not backed by an appropriate provenance tier. |
 | `check_claims_registry` | claims-registry-kit | Buckets public-facing claims as current / stale / unverified against their linked evidence and last-verified date. |
 | `append_audit_entry` | audit-chain-kit | Appends one entry to a hash-chained, tamper-evident audit log. |

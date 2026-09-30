@@ -39,14 +39,14 @@ export function registerProvenanceTool(server: McpServer): void {
         "Scans reader-facing claims for certainty-implying language (\"(verified)\", \"independently " +
         "verified\", \"guaranteed\", \"fact-checked\", \"100% accurate\", ...) that isn't backed by an " +
         "appropriate provenance tier, plus tiers that require a sourceRef but don't have one, and claims " +
-        "carrying an unrecognized tier. This is the exact pattern that caught ~150 false '(verified)' labels " +
-        "on a live site after they had already shipped -- run it on any copy, marketing page, or AI-drafted " +
-        "content that makes factual-sounding claims before it ships, not after. The default phrase list is a " +
-        "starting point drawn from that one incident, not a taxonomy -- it will miss phrases it doesn't know " +
-        "about (e.g. 'clinically proven', 'third-party tested'); extend `certaintyPhrases` for your domain. " +
-        "Negation detection is a fixed character window before a match, not a parser, so it can miss a " +
-        "negation in an earlier clause or over-suppress one further away. An empty result means every claim's " +
-        "certainty language (that this tool's phrase list and negation window caught) is backed by its tier.",
+        "carrying an unrecognized tier. Run it on any copy, marketing page, or AI-drafted content that makes " +
+        "factual-sounding claims before it ships. The default phrase list is a small starter list, not a " +
+        "taxonomy -- it will miss phrases it doesn't know about (e.g. 'clinically proven', 'third-party " +
+        "tested'); extend `certaintyPhrases` for your domain. A negation word ('not', 'without', ...) " +
+        "suppresses a match only inside the same clause (a comma, semicolon, period, colon, !, ?, dash or " +
+        "line break ends it), after the last 'and'/'but', and within `negationWindow` characters. It is a " +
+        "window, not a parser, so it can still suppress an overclaim the negation does not govern. An empty " +
+        "result means no wording offenses were found under the configured rules; it does not verify the claims.",
       inputSchema: {
         claims: z.array(claimSchema).min(1).describe("The claims to check."),
         certaintyPhrases: z
@@ -63,14 +63,14 @@ export function registerProvenanceTool(server: McpServer): void {
         requireSourceRefForTiers: z
           .array(tierEnum)
           .optional()
-          .describe("Tiers that must carry a non-empty sourceRef. Default ['verified']."),
+          .describe("Tiers that must carry a visibly non-empty sourceRef (not only whitespace or invisible characters). Default ['verified']."),
         caseSensitive: z.boolean().optional().describe("Case-sensitive phrase matching. Default false."),
         negationWindow: z
           .number()
           .int()
           .nonnegative()
           .optional()
-          .describe("Characters before a phrase match to scan for a negation word ('not', 'without', ...). Default 40."),
+          .describe("Maximum characters before a phrase match to scan for a negation word ('not', 'without', ...), cut off at the start of the clause. Default 40."),
       },
     },
     ({ claims, certaintyPhrases, certaintyRequiresTier, requireSourceRefForTiers, caseSensitive, negationWindow }) => {
@@ -85,7 +85,7 @@ export function registerProvenanceTool(server: McpServer): void {
         const offenses = validateClaims(claims, options);
         const summary =
           offenses.length === 0
-            ? `CLEAN: ${claims.length} claim(s) checked, 0 provenance offenses.`
+            ? `CLEAN: ${claims.length} claim(s) checked; no wording offenses found under the configured rules (this does not verify the claims).`
             : `FOUND ${offenses.length} offense(s) across ${claims.length} claim(s).`;
         return jsonResult(summary, offenses);
       } catch (err) {

@@ -67,10 +67,12 @@ export function registerTrustIdentifiedTool(server: McpServer): void {
         "buyers. Weighs each signal by tier x source x proof-strength x reputation x recency decay, sums to " +
         "an effective (credibility-weighted) sample size, and shrinks the result toward a domain baseline " +
         "('prior') by a configurable dial -- thin evidence stays close to the prior, deep evidence overrides " +
-        "it. Use this for trust/reputation scores backed by attributable evidence. For unattributed/scraped " +
+        "it. Signals whose combined weight is 0 contribute nothing; when no signal carries weight, confidence is " +
+        "'insufficient' and the score equals the prior. Use this for trust/reputation scores backed by " +
+        "attributable evidence. For unattributed/scraped " +
         "signals with no identity behind them, use assess_anonymous_authenticity instead.",
       inputSchema: {
-        signals: z.array(signalSchema).describe("The identified signals to score from. May be empty (yields the prior)."),
+        signals: z.array(signalSchema).describe("The identified signals to score from. May be empty (yields the prior, with insufficient confidence)."),
         config: configSchema,
         now: z.string().describe("ISO 'now' timestamp recency decay is computed against. Pass a fixed value for determinism."),
         prior: z.number().min(0).max(100).describe("The domain/category baseline the score shrinks toward when evidence is thin."),
@@ -84,9 +86,13 @@ export function registerTrustIdentifiedTool(server: McpServer): void {
       try {
         const resolvedConfig = identified.resolveIdentifiedConfig(config);
         const result = identified.scoreEntity(signals, resolvedConfig, { now, prior, dial });
-        const summary =
-          `Score: ${result.score.toFixed(1)}/100 (raw: ${result.raw === null ? "n/a (no evidence)" : result.raw.toFixed(1)}), ` +
-          `confidence: ${result.confidence.level} (nEff=${result.nEff.toFixed(2)}), from ${result.signalCount} signal(s).`;
+        const counts = `${result.eligibleSignalCount} eligible of ${result.signalCount} submitted signal(s)`;
+        const summary = result.confidence.level === "insufficient"
+          ? `Prior only: ${result.score.toFixed(1)}/100 is the supplied prior, not a measured score. ` +
+            `Confidence: insufficient (nEff=${result.nEff.toFixed(2)}): ${result.confidence.reason ?? "no signal has a positive weight"}. ` +
+            `From ${counts}.`
+          : `Score: ${result.score.toFixed(1)}/100 (raw: ${result.raw === null ? "n/a (no evidence)" : result.raw.toFixed(1)}), ` +
+            `confidence: ${result.confidence.level} (nEff=${result.nEff.toFixed(2)}), from ${counts}.`;
         return jsonResult(summary, result);
       } catch (err) {
         return errorResult(errorMessage(err));

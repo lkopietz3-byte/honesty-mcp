@@ -117,16 +117,17 @@ export function registerCostGovernorScaffoldTool(server: McpServer): void {
               "pre-call ceiling ARE plain data-in/data-out, but the kit's own pitch is the three pieces " +
               "assembled together, so this tool demonstrates all three rather than splitting one out.",
           install: {
-            note:
-              "This kit is currently only available as a local sibling directory (monorepo-adjacent setup, " +
-                "not yet published to npm) -- see this server's own README.md.",
-            local_dev: "npm install cost-governor-kit@file:../cost-governor-kit",
-            once_published: "npm install cost-governor-kit",
+            note: "Published on npm. Node >= 20.19 or >= 22.12 is needed if you load it with require().",
+            command: "npm install cost-governor-kit",
             reference_impl:
               "reference-impl/supabase-usage-ledger.sql implements only the advisory UsageLedger for " +
                 "Postgres/Supabase. Its commit-time re-check caps the recorded count but does not prevent " +
                 "concurrent over-limit paid calls -- it is not a concurrency-safe reservation.",
           },
+          input_rules:
+            "Pricing tables, rates and usage records must be plain objects, and a model id must be a string that " +
+            "is in your pricing table. Anything else (a Map, a class instance, a non-string or unknown model) throws " +
+            "instead of being priced at zero.",
           threePieces: [
             "1. pricing.ts / estimateCostUsd -- cache-aware cost math (cache_read, cache_creation_5m, cache_creation_1h priced as separate line items, never collapsed). Cache reads are priced at a fixed 0.1x by default, which over-estimates models with a lower real cache-read rate, unless you set ModelRates.cacheReadPerMillion to that model's real per-million cache-read price -- it replaces the 0.1x ratio entirely for that call.",
             "2. preCallCeiling.ts / checkPreCallCeiling -- checks an ESTIMATED next-call cost against caller-supplied spend-so-far and rates before the call (rates always passed in live, never a hardcoded default). It is only as good as the estimate and cannot coordinate concurrent requests.",

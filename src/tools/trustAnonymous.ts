@@ -34,7 +34,7 @@ const configSchema = z
       })
       .optional()
       .describe("Relative weighting of the four positive components."),
-    astroturfWeight: z.number().optional().describe("How much the astroturf penalty is subtracted from the positive composite."),
+    astroturfWeight: z.number().optional().describe("How much the pattern penalty (the kit's `astroturf` rules) is subtracted from the positive composite."),
     recency: z
       .object({
         halfLifeDays: z.number(),
@@ -49,7 +49,7 @@ const configSchema = z
         uniformMeanThreshold: z.number().describe("Mean sentiment above this is a candidate for the uniformity penalty."),
         uniformVarianceThreshold: z.number().describe("Sentiment variance below this is a candidate for the uniformity penalty."),
         uniformPenalty: z.number(),
-        minSignalsForUniformCheck: z.number().describe("Minimum signal count before astroturf checks apply at all."),
+        minSignalsForUniformCheck: z.number().describe("Minimum signal count before the pattern checks apply at all."),
       })
       .optional(),
     confidence: z
@@ -74,14 +74,16 @@ export function registerTrustAnonymousTool(server: McpServer): void {
       description:
         "Scores how organic a corpus of UNATTRIBUTED, scraped sentiment signals (crawled mentions, imported " +
         "reviews with no verifiable identity, aggregator feeds) looks, weighing a positive composite of " +
-        "consensus/diversity/volume/recency against a heuristic penalty for two specific, cheap manipulation " +
-        "patterns: evidence concentrated in a single source type, and unusually uniform sentiment (near-maximal " +
-        "with near-zero variance). Neither pattern establishes fabrication. This is NOT a fraud " +
-        "or astroturf detector: it cannot show that sentiment is fabricated or that any reviewer is fake, and " +
-        "a campaign that varies its wording/sentiment and spreads across several sources isn't caught by " +
-        "these two checks. Treat a low score as 'looks statistically unusual in a specific way worth a human " +
-        "look', not as a fraud finding. Use this for reviews/mentions/buzz with no identity behind them. For " +
-        "signals from known, identified contributors, use score_trust_identified instead.",
+        "consensus/diversity/volume/recency against a heuristic penalty for two specific patterns: evidence " +
+        "concentrated in a single source type, and unusually uniform sentiment (near-maximal with near-zero " +
+        "variance). Neither pattern establishes fabrication, and source types are counted without verifying " +
+        "that they are independent. It cannot show that sentiment is fabricated or that any reviewer is fake, " +
+        "and varied sentiment spread across several sources isn't caught by these two checks. Treat a low " +
+        "score as 'looks statistically unusual in a specific way worth a human look', not as a finding. " +
+        "Signals with zero confidence, zero source weight or fully decayed recency carry no weight; when no " +
+        "signal carries weight, confidence is 'insufficient' and trustScore is null (no score is reported). " +
+        "Use this for reviews/mentions/buzz with no identity behind them. For signals from known, identified " +
+        "contributors, use score_trust_identified instead.",
       inputSchema: {
         signals: z.array(signalSchema).describe("The unattributed signals to assess. May be empty."),
         config: configSchema,
@@ -92,13 +94,14 @@ export function registerTrustAnonymousTool(server: McpServer): void {
       try {
         const resolvedConfig = anonymous.resolveAnonymousConfig(config);
         const result = anonymous.assessAuthenticity(signals, resolvedConfig, { now });
-        const summary = result.signalCount === 0
-          ? "No submitted evidence. The raw payload contains the kit's default score and confidence. " +
-            "An evidence-backed assessment is unavailable. Independence is not verified."
+        const counts = `${result.eligibleSignalCount} eligible of ${result.signalCount} submitted signal(s)`;
+        const summary = result.confidence.level === "insufficient" || result.trustScore === null
+          ? `No evidence-backed assessment: ${result.confidence.reason ?? "no signal carried any weight"}. ` +
+            `${counts}. No anonymous trust score is available. Independence is not verified.`
           : `Heuristic trust score: ${result.trustScore}/100 across ${result.sourceCount} distinct source type(s) ` +
-            `(confidence: ${result.confidence.level}), from ${result.signalCount} submitted signal(s). ` +
+            `(confidence: ${result.confidence.level}), from ${counts}. ` +
             `Independence is not verified. Heuristic flags: low source count=${result.flags.lowSourceCount}, ` +
-            `uniform sentiment=${result.flags.uniformSentiment}.`;
+            `uniform sentiment=${result.flags.uniformSentiment}. Kit explanation: ${result.explanation}`;
         return jsonResult(summary, result);
       } catch (err) {
         return errorResult(errorMessage(err));
