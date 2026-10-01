@@ -20,3 +20,14 @@ MCP server exposing the eleven-kit 'honesty SDK' family (grounding-kit, corrobor
 - Never weaken lint or tests to get green; call out any public API change.
 - Do not run `npm publish` or push tags without explicit permission. Treat any claim that a version is published as Reported until the registry confirms it.
 - Keep unrelated uncommitted work intact; never stage or reset the whole tree.
+
+## Review preparation
+
+Use [docs/REVIEW_READINESS.md](docs/REVIEW_READINESS.md) for milestone review cadence and launch-preparation evidence.
+
+
+## Code Review Rules
+
+- Keep stdout exclusively for JSON-RPC. Route diagnostics, including caller-code logs, to stderr so normal logging cannot corrupt the MCP transport.
+- Validate MCP inputs, call the actual kit exports and return execution failures through `errorResult` with `isError: true`. A successfully executed content check with a failing verdict remains a normal result; instructional scaffold tools may return accurate API examples.
+- Describe worker timeouts as time limits, not security sandboxes. Caller JavaScript retains the documented filesystem, network and environment privileges; do not add hidden execution paths or claim isolation that the implementation does not provide.

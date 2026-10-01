@@ -27,7 +27,7 @@
 
 ```bash
 npm install             # resolves the 11 sibling kits from the npm registry
-npm run verify           # lint + typecheck + test + build + smoke
+npm run verify           # lint + typecheck + test + build + smoke + stdio + installed consumer
 npm audit --include=dev
 ```
 
@@ -35,7 +35,10 @@ npm audit --include=dev
 `tsc --noEmit`, `vitest run`, `tsc -p tsconfig.build.json`, and
 `node dist/smoke.js` (a real MCP client/server handshake over
 `InMemoryTransport`, listing every tool and calling one end-to-end). It
-also runs automatically as `prepublishOnly` before `npm publish`.
+also runs `stdio-probe` against the local bin and `verify:installed`, which packs
+and installs the tarball into a fresh temporary consumer and probes its installed
+bin from an unrelated directory. The installed-consumer step needs registry access.
+The full pipeline runs as `prepublishOnly` before `npm publish`.
 
 `.github/workflows/verify.yml` runs the same pipeline (plus
 `audit:dependencies`) in CI on every push/PR, on Node 26.3.0, with a
@@ -43,13 +46,10 @@ separate Node 20/22/24 compatibility job. This wasn't possible before the
 sibling kits were on npm: CI can't check out `file:../<kit>` sibling paths,
 and several of those repos were private.
 
-There is no `verify:package`/consumer-probe step here, unlike the sibling
-kits — that's a library-publishing concept (pack a tarball, install it into
-a scratch project, import it by name) that doesn't map cleanly onto a
-`bin`-only CLI with no `exports`. The equivalent manual check (pack, install
-the tarball into a scratch project, run a real stdio JSON-RPC handshake via
-`npx`) was done once for the npm-publish-readiness pass; see the PR that
-introduced it.
+The bin-only server uses `verify:installed` instead of the sibling libraries'
+`verify:package` export probe. Its packed installed-bin check exercises a real
+stdio JSON-RPC handshake and tools via `scripts/stdio-probe.mjs`; it is part of
+normal verification, not a one-time manual release check.
 
 ### History: build fixes made while these kits were still `file:`-linked
 
@@ -84,7 +84,7 @@ build), but it's why that rename shows up in this server's own git history.
 
 ## Release and rollback
 
-`npm run verify` (lint, typecheck, test, build, smoke) runs automatically before publish via
+`npm run verify` (lint, typecheck, test, build, smoke, stdio and installed consumer) runs automatically before publish via
 the `prepublishOnly` script, so a broken build cannot reach the registry by accident. To
 release: bump `version` in `package.json` AND `SERVER_VERSION` in `src/server.ts` (see
 invariant 4), add a dated `CHANGELOG.md` entry, commit, and push a `vX.Y.Z` tag that matches
