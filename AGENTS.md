@@ -16,9 +16,9 @@ MCP server exposing the eleven-kit 'honesty SDK' family (grounding-kit, corrobor
 - `npm run build`
 
 ## Rules
+- For handoffs, update `SESSION_HANDOFF.md` with revision, evidence and pending work; see `docs/SHARED_CONTEXT.md` for the portable context export.
 - Run `npm run verify` and read its output before calling work done. Report any step that did not run.
 - Its build does not clean `dist/`; remove `dist/` before a final `npm run verify` so stale output cannot pass.
 - Never weaken lint or tests to get green; call out any public API change.
 - Do not run `npm publish` or push tags without explicit permission. Treat any claim that a version is published as Reported until the registry confirms it.
 - Keep unrelated uncommitted work intact; never stage or reset the whole tree.
-- For handoffs, update `SESSION_HANDOFF.md` with revision, evidence and pending work; see `docs/SHARED_CONTEXT.md` for the portable context export.
