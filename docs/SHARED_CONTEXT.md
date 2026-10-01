@@ -9,7 +9,7 @@ Use the repository records as common project context. Native memories and chat h
 | `AGENTS.md`, imported by `CLAUDE.md` | Short shared instructions and pointers. Keep the existing single rule source. |
 | `ENGINEERING.md` | Stable invariants and verification commands. Current package.json/scripts govern the commands actually executed. |
 | `PROJECT_CONTEXT.md` | Durable project identity and decisions, with dates and source references. Recheck stale observations. |
-| Optional, uncommitted `SESSION_HANDOFF.md` | Current unfinished work: checkout/revision, modified files, results, limitations and one next step. A clean clone needs no handoff. |
+| Optional, uncommitted `SESSION_HANDOFF.md` | Current unfinished work: checkout/revision, modified files, results, limitations and one next step. A clean clone needs no handoff; `.gitignore` excludes it from ordinary staging. |
 | Existing task receipts and focused regressions | Exact evidence. Preserve them; a summary does not replace tests or revision identity. |
 
 At a meaningful handoff, reconcile HEAD/status and update the existing session note with changed files, checks actually run, pending gates and the next action. Record durable decisions only when they matter; point to current source or a focused regression instead of copying codebase facts into several memory files. Preserve unrelated work and coordinate one writer per overlapping file. Avoid appending every interaction or rebuilding large instruction files.
@@ -23,7 +23,7 @@ node scripts/export-context.mjs > /tmp/honesty-mcp-context.md
 node scripts/export-context.mjs --json > /tmp/honesty-mcp-context.json
 ```
 
-The script prints a dated snapshot of four required repository docs and the optional local `SESSION_HANDOFF.md` with their SHA-256 hashes, HEAD/branch/status and a hash of the tracked diff. It reads from its own repository root even when launched from another directory. It refuses symlinked sources, oversized docs and observed changes during export. It does not install, write back to the checkout, upload, call a model, read native memory/transcripts or change settings. The output is selected documentation, not a complete checkout backup or a guarantee that the checkout cannot change after export.
+The script prints a dated snapshot of four required repository docs and the optional local `SESSION_HANDOFF.md` with their SHA-256 hashes, HEAD/branch/selected-document status and a hash of the repository-wide tracked diff. It reads from its own repository root even when launched from another directory. It refuses symlinked sources, oversized docs and observed changes during export. It does not install, write back to the checkout, upload, call a model, read native memory/transcripts or change settings. The output is selected documentation, not a complete checkout backup or a guarantee that the checkout cannot change after export.
 
 Review the exported content before attaching the Markdown to an authorized ChatGPT or Claude project/chat. Allowlisting is not secret detection: private text placed in these selected docs will also appear in the export. Uploading creates a snapshot; refresh it after relevant changes. ChatGPT project files can provide common context within that project, but uploading here does not configure project memory or synchronize Claude/Codex histories. Ask the receiving chat to use the packet's revision and dated evidence, and reconcile any proposal against the live checkout before applying it.
 
