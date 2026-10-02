@@ -1,5 +1,7 @@
 # honesty-mcp
 
+**[Try the kits in your browser →](https://lkopietz3-byte.github.io/honesty-kits/)** · Part of [honesty kits](https://github.com/lkopietz3-byte/honesty-kits), a family of small checks for the claims an AI product makes.
+
 An MCP (Model Context Protocol) server that exposes eleven already-built,
 zero-runtime-dependency "honesty SDK" TypeScript libraries as tools any
 MCP-compatible coding agent (Claude Code, Claude Desktop, or any other MCP
