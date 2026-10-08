@@ -14,7 +14,7 @@ jobs:
   release:
     name: Publish to npm and the MCP registry (trusted publishing)
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -47,13 +47,30 @@ jobs:
 
       - name: Check server.json matches package.json
         run: |
-          PKG_VERSION="$(node -p "require('./package.json').version")"
-          SERVER_VERSION="$(node -p "require('./server.json').version")"
-          SERVER_PKG_VERSION="$(node -p "require('./server.json').packages[0].version")"
-          if [ "$SERVER_VERSION" != "$PKG_VERSION" ] || [ "$SERVER_PKG_VERSION" != "$PKG_VERSION" ]; then
-            echo "::error::server.json (${SERVER_VERSION} / ${SERVER_PKG_VERSION}) does not match package.json ${PKG_VERSION}"
-            exit 1
-          fi
+          node -e '
+            const pkg = require("./package.json");
+            const server = require("./server.json");
+            const problems = [];
+            if (server.version !== pkg.version) problems.push(`server.json version ${server.version} != package.json ${pkg.version}`);
+            if (server.packages?.[0]?.version !== pkg.version) problems.push(`server.json packages[0].version ${server.packages?.[0]?.version} != ${pkg.version}`);
+            if (server.name !== pkg.mcpName) problems.push(`server.json name ${server.name} != package.json mcpName ${pkg.mcpName}`);
+            if (server.packages?.[0]?.identifier !== pkg.name) problems.push(`server.json identifier ${server.packages?.[0]?.identifier} != package name ${pkg.name}`);
+            if (problems.length) { for (const p of problems) console.log(`::error::${p}`); process.exit(1); }
+          '
+
+      - name: Install mcp-publisher (pinned, checksum-verified)
+        env:
+          MCP_PUBLISHER_VERSION: v1.8.1
+          MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+        run: |
+          curl -fsSL -o mcp-publisher.tar.gz "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          echo "${MCP_PUBLISHER_SHA256}  mcp-publisher.tar.gz" | sha256sum -c -
+          tar xzf mcp-publisher.tar.gz mcp-publisher
+
+      # Catch server.json problems while nothing has been published yet
+      # (the registry's own rules; no sign-in needed).
+      - name: Validate server.json against the MCP registry
+        run: ./mcp-publisher validate
 
       - name: Audit locked dependencies
         run: npm run audit:dependencies
@@ -86,10 +103,29 @@ jobs:
         if: steps.check.outputs.already_published == 'false'
         run: npm publish
 
+      # The registry gets its own check, so a re-run after a failed registry
+      # step finishes the job instead of skipping it because npm already has
+      # the version. Only a 200 or a 404 is trusted; anything else fails.
+      - name: Check whether the MCP registry has this version
+        id: registry
+        run: |
+          NAME="$(node -p "encodeURIComponent(require('./server.json').name)")"
+          VERSION="$(node -p "require('./server.json').version")"
+          CODE="$(curl -s -o /dev/null -w '%{http_code}' "https://registry.modelcontextprotocol.io/v0/servers/${NAME}/versions/${VERSION}")"
+          if [ "$CODE" = "200" ]; then
+            echo "registry_published=true" >> "$GITHUB_OUTPUT"
+            echo "The MCP registry already lists ${VERSION}; nothing to do."
+          elif [ "$CODE" = "404" ]; then
+            echo "registry_published=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::Could not determine MCP registry state (HTTP ${CODE})"
+            exit 1
+          fi
+
       # The MCP registry validates the package against npm, so wait until npm
-      # lists the new version before publishing server.json.
+      # lists the version (immediate when it was already published).
       - name: Wait for npm to list this version
-        if: steps.check.outputs.already_published == 'false'
+        if: steps.registry.outputs.registry_published == 'false'
         run: |
           PKG_NAME="$(node -p "require('./package.json').name")"
           PKG_VERSION="$(node -p "require('./package.json').version")"
@@ -100,18 +136,8 @@ jobs:
           echo "::error::npm did not list ${PKG_NAME}@${PKG_VERSION} within 5 minutes"
           exit 1
 
-      - name: Install mcp-publisher (pinned, checksum-verified)
-        if: steps.check.outputs.already_published == 'false'
-        env:
-          MCP_PUBLISHER_VERSION: v1.8.1
-          MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
-        run: |
-          curl -fsSL -o mcp-publisher.tar.gz "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
-          echo "${MCP_PUBLISHER_SHA256}  mcp-publisher.tar.gz" | sha256sum -c -
-          tar xzf mcp-publisher.tar.gz mcp-publisher
-
       - name: Publish to the MCP registry
-        if: steps.check.outputs.already_published == 'false'
+        if: steps.registry.outputs.registry_published == 'false'
         run: |
           ./mcp-publisher login github-oidc
           ./mcp-publisher publish

@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The README links to the [in-browser playground](https://lkopietz3-byte.github.io/honesty-kits/) for the kits.
 - Added the `honesty-kits` npm keyword so the family shows up together in search.
-- The release workflow now also publishes `server.json` to the MCP registry, signing in with the workflow's GitHub identity (OIDC) after npm lists the new version. It checks that `server.json` matches `package.json` first.
+- The release workflow now also publishes `server.json` to the MCP registry, signing in with the workflow's GitHub identity (OIDC) after npm lists the new version. Before anything is published it checks that `server.json` matches `package.json` (versions, `mcpName`, package name) and runs the registry's own validation. The registry gets its own "already published?" check, so re-running a release whose registry step failed finishes the job.
 
 ## [0.2.0] - 2026-09-30
 
