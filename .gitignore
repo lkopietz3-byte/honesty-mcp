@@ -2,3 +2,8 @@ node_modules/
 dist/
 *.log
 SESSION_HANDOFF.md
+
+# Local environment files: never commit secrets
+.env
+.env.*
+!.env.example
