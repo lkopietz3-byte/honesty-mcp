@@ -3,7 +3,7 @@
   "name": "io.github.lkopietz3-byte/honesty-mcp",
   "description": "MCP server exposing 11 honesty-SDK kits (grounding, trust, audit, corroboration) as agent tools.",
   "title": "honesty-mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "repository": {
     "url": "https://github.com/lkopietz3-byte/honesty-mcp",
     "source": "github",
@@ -14,7 +14,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "honesty-mcp",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "transport": {
         "type": "stdio"
       },

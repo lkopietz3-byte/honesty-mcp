@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-10-07
+
+### Security
+
+- Requires `@modelcontextprotocol/sdk` ^1.32.1, which fixes GHSA-6qxp-vccf-f47h (OAuth client credential handling). This server only uses the SDK's stdio server transport and never used the affected OAuth client code; the new minimum keeps installs off the affected versions.
+- Development lockfile: `source-map-js` 1.2.2 (GHSA-68fv-2mgg-jv7q).
+
+### Changed
+
+- The README links to the [in-browser playground](https://lkopietz3-byte.github.io/honesty-kits/) for the kits.
+- Added the `honesty-kits` npm keyword so the family shows up together in search.
+
 ## [0.2.0] - 2026-09-30
 
 Upgrades every wrapped kit to its audited release and brings the tool text in
