@@ -17,6 +17,21 @@ This server is thin by design: every tool is a Zod input schema plus a
 handler that imports and calls the real, unmodified export from the wrapped
 kit. It does not reimplement any of the underlying logic.
 
+## Quickstart
+
+```bash
+claude mcp add honesty-mcp -- npx -y honesty-mcp
+```
+
+Then ask your coding agent to run `check_grounding` on a draft answer and its
+sources. Each sentence comes back as grounded, placeholder, ungrounded or
+invalid (a citation whose source is missing from the evidence). It checks
+structure only: it does not decide whether a source is true.
+
+Thirteen tools are listed by default. The three paths that run JavaScript the
+agent sends are off unless you set `HONESTY_MCP_ENABLE_CODE_EXEC=1`; read
+[A note on the code-execution tools](#a-note-on-the-code-execution-tools) first.
+
 ## Install
 
 `honesty-mcp` is published on npm and wraps its eleven sibling "honesty SDK"
