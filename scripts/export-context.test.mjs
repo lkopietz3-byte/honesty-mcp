@@ -53,7 +53,10 @@ describe('shared context export', () => {
     })).toThrow(/changed during export/);
   });
 
-  it('runs both CLI formats against real Git from another cwd without exposing unrelated paths', () => {
+  // This test starts about ten git processes and two node processes. The default 5 s budget is
+  // a poor fit on a busy machine (process start-up alone can take seconds), so give it a fixed,
+  // generous limit. The assertions are unchanged.
+  it('runs both CLI formats against real Git from another cwd without exposing unrelated paths', { timeout: 60_000 }, () => {
     const root = fixture();
     const outside = fixture();
     rmSync(join(root, 'SESSION_HANDOFF.md'));
