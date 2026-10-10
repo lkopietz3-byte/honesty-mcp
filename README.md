@@ -181,8 +181,10 @@ and `check_mutation_invariance` wrap kit functions whose real signature takes
 an actual JavaScript **function** (a ranking function, a mutation closure);
 there is no way to represent a function as MCP JSON arguments. Both tools
 accept that function as a **source-code string** and build the real function
-via the `Function` constructor (`src/lib/buildFunction.ts`) before calling the
-unmodified kit export with it. `compute_divergence`'s optional
+via the `Function` constructor, inside the worker that `src/lib/runFunctionJob.ts`
+starts after the code-execution switch check, before calling the unmodified kit
+export with it. (`src/lib/buildFunction.ts` is the same builder kept as an
+independently tested reference copy; nothing calls it at runtime.) `compute_divergence`'s optional
 `config.groupBySource` uses the same mechanism for advice-ledger-kit's
 `groupBy` config function, but only when a caller actually supplies it, and
 omitting it (the common case) needs no code execution at all, since the
@@ -232,11 +234,13 @@ forever — every other in-flight or future tool call along with it. Now, if
 the worker doesn't finish within the timeout (default **10 seconds**,
 override with the `HONESTY_MCP_WORKER_TIMEOUT_MS` environment variable, in
 milliseconds, from 1 to 2147483647), it is forcibly `terminate()`d and the
-tool call returns a clear timeout error instead of hanging. Anything the
-supplied code prints (`console.log`, `console.error`, `process.stdout.write`)
-is captured and written to the server's stderr with a
-`[honesty-mcp worker]` prefix, capped at 16 KiB per call. It never reaches
-stdout, which carries the MCP protocol. **This is not a sandbox** — the
+tool call returns a clear timeout error instead of hanging. Console output
+from the supplied code (`console.log`, `console.error`) is captured and
+written to the server's stderr with a `[honesty-mcp worker]` prefix, capped
+at 16 KiB per call, so it doesn't reach stdout, which carries the MCP
+protocol. Code that writes to file descriptor 1 directly (for example with
+`fs.writeSync(1, ...)`) is not intercepted and can corrupt the protocol
+stream; that is part of why this is not a sandbox. **This is not a sandbox** — the
 worker has this process's full OS-level privileges (filesystem, network,
 environment variables) — it only bounds *time*. It does not stop caller
 code from reading your filesystem, making network requests, or doing
@@ -301,7 +305,7 @@ src/
   lib/
     result.ts                 CallToolResult helpers (jsonResult / errorResult)
     codeExec.ts               the HONESTY_MCP_ENABLE_CODE_EXEC switch and its default constant
-    buildFunction.ts           turns a JS source string into a callable function
+    buildFunction.ts           reference copy of the source-to-function builder (tested; not called at runtime)
     runFunctionJob.ts          runs that function (or the divergence groupBySource case)
                                inside a worker_threads Worker with a bounded timeout
   tools/

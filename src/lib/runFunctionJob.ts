@@ -32,7 +32,9 @@
 // Worker stdout/stderr are captured (Worker `stdout: true, stderr: true`),
 // never forwarded to this process's stdout: stdout carries the MCP JSON-RPC
 // protocol, and a caller's console.log would corrupt it. Captured output is
-// written to this process's stderr with a prefix, capped per job.
+// written to this process's stderr with a prefix, capped per job. Direct
+// writes to file descriptor 1 from inside the worker (fs.writeSync(1, ...))
+// are not intercepted; the README says so (part of "not a sandbox").
 //
 // The function-from-source-string builder (see buildFunction.ts for the
 // canonical, independently-tested version) is duplicated inline in
