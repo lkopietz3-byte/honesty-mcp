@@ -119,7 +119,7 @@ publisher (see
 
 ## Tools
 
-**9 content-checking kits, 12 tools** (kits 1–9 — hand one of these real
+**9 content-checking kits, 12 tools** (kits 1–9: hand one of these real
 content or data, get back a structured verdict):
 
 | Tool | Wraps | One-line purpose |
@@ -163,13 +163,13 @@ That is 14 tools when code execution is enabled. With it off (the default),
 
 **These tools are off by default.** `check_payout_invariance` (runtime mode)
 and `check_mutation_invariance` wrap kit functions whose real signature takes
-an actual JavaScript **function** (a ranking function, a mutation closure) —
+an actual JavaScript **function** (a ranking function, a mutation closure);
 there is no way to represent a function as MCP JSON arguments. Both tools
 accept that function as a **source-code string** and build the real function
 via the `Function` constructor (`src/lib/buildFunction.ts`) before calling the
 unmodified kit export with it. `compute_divergence`'s optional
 `config.groupBySource` uses the same mechanism for advice-ledger-kit's
-`groupBy` config function, but only when a caller actually supplies it —
+`groupBy` config function, but only when a caller actually supplies it, and
 omitting it (the common case) needs no code execution at all, since the
 library's own default groups by each pair's `group` field. This is equivalent
 to `eval` for that one string.
@@ -263,7 +263,7 @@ npm start              # runs dist/index.js on stdio
 npm run lint         # eslint . --max-warnings=0
 npm run typecheck   # tsc --noEmit over src/ + test/
 npm test             # vitest (code execution is switched on for the suite in
-                      # vitest.config.mjs) — spins up a real MCP Client/Server pair
+                      # vitest.config.mjs), spins up a real MCP Client/Server pair
                       # over the SDK's InMemoryTransport and calls tools
                       # end-to-end (see test/*.test.ts)
 npm run build        # tsc -p tsconfig.build.json -- compiles src/ -> dist/
