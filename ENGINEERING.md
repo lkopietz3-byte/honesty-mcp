@@ -13,6 +13,13 @@
    `worker_threads` Worker and `terminate()`s it if it doesn't finish within
    `HONESTY_MCP_WORKER_TIMEOUT_MS` (default 10000ms). This bounds time only
    — it is not a sandbox and does not restrict filesystem/network/env access.
+   These paths are off unless `HONESTY_MCP_ENABLE_CODE_EXEC` is exactly `1`
+   (`src/lib/codeExec.ts`; the default is the constant
+   `CODE_EXEC_ENABLED_BY_DEFAULT`). The same function decides what gets
+   registered, and `runFunctionJob` calls `assertCodeExecEnabled()` before it
+   spawns anything, so it is the single fail-closed choke point.
+   `check_payout_invariance` `static-imports` mode takes file contents, never
+   paths: a list of paths is rejected.
 3. Every tool handler calls the wrapped kit's real, unmodified export. This
    server does not reimplement grounding, invariance, trust scoring,
    provenance validation, claims staleness, audit-chain hashing, or

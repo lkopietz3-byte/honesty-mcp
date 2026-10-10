@@ -58,6 +58,28 @@ Any other MCP client that reads an `mcpServers` config (Claude Desktop's
 }
 ```
 
+Three of the tools run JavaScript that the calling agent sends, so they are
+**off by default**. To use them, add the environment variable
+`HONESTY_MCP_ENABLE_CODE_EXEC=1` to the server's environment (see
+[A note on the code-execution tools](#a-note-on-the-code-execution-tools)
+first):
+
+```bash
+claude mcp add -e HONESTY_MCP_ENABLE_CODE_EXEC=1 honesty-mcp -- npx -y honesty-mcp
+```
+
+```json
+{
+  "mcpServers": {
+    "honesty-mcp": {
+      "command": "npx",
+      "args": ["-y", "honesty-mcp"],
+      "env": { "HONESTY_MCP_ENABLE_CODE_EXEC": "1" }
+    }
+  }
+}
+```
+
 The server runs on the **stdio transport** — it reads JSON-RPC requests
 from stdin and writes responses to stdout, logging only a one-line startup
 banner to stderr so stdout stays a clean JSON-RPC channel. This is the
@@ -104,8 +126,8 @@ content or data, get back a structured verdict):
 |---|---|---|
 | `check_grounding` | grounding-kit | Checks citation structure in AI-generated text, sentence by sentence: uncited claims, honest placeholders, and citations whose marker is missing or whose evidence doesn't match lexically. Structural only; it does not verify that the evidence is true. |
 | `corroborate_evidence` | corroboration-kit | Reports the evidence direction (supports / contradicts / mixed / none) and a graded verdict from distinct sources — not a vote count. Independence is not verified, and `confirmed` can mean confirmed-contradicted, so read the direction first. |
-| `check_payout_invariance` | payout-invariance-kit | Checks, for the scenarios you supply, whether a ranking engine's output changes with who pays more (`runtime` mode) or whether payout identifiers appear in its source at all (`static-imports` mode). Not a formal proof for every possible payout configuration. |
-| `check_mutation_invariance` | mutation-invariance-kit | Checks, for the scenarios you supply, whether a decision/score/ranking function's output depends on a variable it claims not to (protected attribute, geography, price, or anything you name). Not a formal proof for every possible input. |
+| `check_payout_invariance` | payout-invariance-kit | Checks, for the scenarios you supply, whether a ranking engine's output changes with who pays more (`runtime` mode, off unless `HONESTY_MCP_ENABLE_CODE_EXEC=1`) or whether payout identifiers appear in source text you send (`static-imports` mode, always available; it never reads files from disk). Not a formal proof for every possible payout configuration. |
+| `check_mutation_invariance` | mutation-invariance-kit | Off unless `HONESTY_MCP_ENABLE_CODE_EXEC=1` (it is not listed otherwise). Checks, for the scenarios you supply, whether a decision/score/ranking function's output depends on a variable it claims not to (protected attribute, geography, price, or anything you name). Not a formal proof for every possible input. |
 | `score_trust_identified` | trust-core (`identified`) | Scores an entity from known, identified contributors (reviewer accounts, raters, inspectors), shrinking thin evidence toward a prior. With no weighted evidence it returns the prior with `insufficient` confidence, not a measured score. |
 | `assess_anonymous_authenticity` | trust-core (`anonymous`) | Scores unattributed/scraped sentiment on how organic it looks, with a heuristic discount for two specific patterns (source concentration, unusually uniform sentiment). It does not detect fabrication or verify independence, and it reports no score (`trustScore: null`) when no signal carries weight. |
 | `check_provenance_claims` | provenance-kit | Flags certainty-implying language ("(verified)", "guaranteed") not backed by an appropriate provenance tier. |
@@ -113,7 +135,7 @@ content or data, get back a structured verdict):
 | `append_audit_entry` | audit-chain-kit | Appends one entry to a hash-chained, tamper-evident audit log. |
 | `verify_audit_chain` | audit-chain-kit | Independently re-verifies a hash chain from genesis; detects mutation and severed links unconditionally, plain tail deletion with `expectedMinLength`, and truncate-and-re-append (or a full rewrite) only with `anchor` — `expectedMinLength` alone does NOT catch a truncate-and-re-append. |
 | `grade_decision` | advice-ledger-kit | Grades one recommendation-and-decision pair against a before/after observation log — exposure-aligned, with separate floors per window and machine-readable refusal codes. `holding` requires both the exposed bad count to stay under `refuteThreshold` AND its bad rate to not exceed the baseline's (exact comparison, not the rounded `badRate`); either failing is `not-holding` (see the tool description). |
-| `compute_divergence` | advice-ledger-kit | Measures how often an engine and a human disagreed, and where a later outcome exists, reports engine-right/human-right as separate, never-blended counts. |
+| `compute_divergence` | advice-ledger-kit | Measures how often an engine and a human disagreed, and where a later outcome exists, reports engine-right/human-right as separate, never-blended counts. The optional custom `groupBySource` input is off unless `HONESTY_MCP_ENABLE_CODE_EXEC=1`. |
 
 **2 scaffolding tools** (agent-receipt-kit, cost-governor-kit — these are
 runtime libraries a project *installs and imports into its own running
@@ -134,26 +156,58 @@ across a whole population — that read better as separate, single-purpose
 MCP tools than as one tool with a mode switch) plus 2 scaffolding tools =
 **14 tools total**.
 
+That is 14 tools when code execution is enabled. With it off (the default),
+`check_mutation_invariance` is not listed, so a client sees 13.
+
 ### A note on the code-execution tools
 
-`check_payout_invariance` (runtime mode) and `check_mutation_invariance`
-both wrap kit functions whose real signature takes an actual JavaScript
-**function** (a ranking function, a mutation closure) — there is no way to
-represent a function as MCP JSON arguments. Both tools accept that function
-as a **source-code string** and build the real function via the `Function`
-constructor (`src/lib/buildFunction.ts`) before calling the unmodified kit
-export with it. `compute_divergence`'s optional `config.groupBySource` uses
-the same mechanism for advice-ledger-kit's `groupBy` config function, but
-only when a caller actually supplies it — omitting it (the common case)
-needs no code execution at all, since the library's own default groups by
-each pair's `group` field. This is equivalent to `eval` for that one
-string. It is appropriate here because this is a local, stdio-only dev tool
-a coding agent runs against its own project's code — the same trust model
-as that agent running `node -e`, `vitest run`, or any other local
-code-execution tool — and it is **not** designed to be exposed to
-untrusted, remote, or adversarial input. Don't wire this server up to
-accept tool arguments from anyone other than the trusted local agent
-driving it.
+**These tools are off by default.** `check_payout_invariance` (runtime mode)
+and `check_mutation_invariance` wrap kit functions whose real signature takes
+an actual JavaScript **function** (a ranking function, a mutation closure) —
+there is no way to represent a function as MCP JSON arguments. Both tools
+accept that function as a **source-code string** and build the real function
+via the `Function` constructor (`src/lib/buildFunction.ts`) before calling the
+unmodified kit export with it. `compute_divergence`'s optional
+`config.groupBySource` uses the same mechanism for advice-ledger-kit's
+`groupBy` config function, but only when a caller actually supplies it —
+omitting it (the common case) needs no code execution at all, since the
+library's own default groups by each pair's `group` field. This is equivalent
+to `eval` for that one string.
+
+Because an agent that has been fed hostile text could be talked into sending
+code, the server only offers these paths when the operator turns them on by
+setting `HONESTY_MCP_ENABLE_CODE_EXEC=1` in the server's environment. Exactly
+`1` enables them; any other value (`true`, `yes`, `0`, empty) leaves them off.
+While they are off:
+
+- `check_mutation_invariance` is not registered, so it does not appear in the
+  tool list.
+- `check_payout_invariance` is listed with `static-imports` mode only.
+- `compute_divergence` is listed without the `groupBySource` input, and sending
+  it is rejected.
+- The server's initialize result carries a short note naming the variable.
+- `runFunctionJob` (`src/lib/runFunctionJob.ts`), the one place caller
+  JavaScript is ever run, refuses to start a worker. Its error names
+  `HONESTY_MCP_ENABLE_CODE_EXEC`.
+
+Every other tool is unchanged. The default is one named constant,
+`CODE_EXEC_ENABLED_BY_DEFAULT` in `src/lib/codeExec.ts`.
+
+**Turning it on does not isolate anything.** The code still runs with this
+process's full filesystem, network and environment access. It is the same trust
+model as the agent running `node -e` or `vitest run` itself, and it is **not**
+designed to be exposed to untrusted, remote, or adversarial input. Only enable
+it for a server driven by a trusted local agent, and only pass code you wrote
+or trust.
+
+### Static-imports mode never reads files from disk
+
+`check_payout_invariance`'s `static-imports` mode takes `files` as a map of
+path to file content that the caller sends. A list of paths is rejected with an
+error. The wrapped kit would read any readable path it was given and return the
+matching lines, which would let an agent read arbitrary files from the machine
+one line at a time, so this server does not pass paths through. To scan files,
+have the agent read them and send the text.
 
 **All three of these run inside a `worker_threads` Worker with a bounded
 timeout** (`src/lib/runFunctionJob.ts`), not on the server's own main
@@ -187,7 +241,7 @@ server to untrusted, remote, or adversarial input.
 - **`check_payout_invariance`, `check_mutation_invariance`, and
   `compute_divergence`'s worker-thread timeout bounds time only, not
   behavior** — see "A note on the code-execution tools" above. It is not a
-  sandbox.
+  sandbox, and these paths are off unless `HONESTY_MCP_ENABLE_CODE_EXEC=1`.
 - **`SERVER_VERSION` (`src/server.ts`) and `package.json`'s `version` are
   still bumped by hand.** `test/drift.test.ts` now fails if they, or the two
   versions in `server.json`, disagree, but nothing bumps them for you.
@@ -208,7 +262,8 @@ npm start              # runs dist/index.js on stdio
 ```bash
 npm run lint         # eslint . --max-warnings=0
 npm run typecheck   # tsc --noEmit over src/ + test/
-npm test             # vitest — spins up a real MCP Client/Server pair
+npm test             # vitest (code execution is switched on for the suite in
+                      # vitest.config.mjs) — spins up a real MCP Client/Server pair
                       # over the SDK's InMemoryTransport and calls tools
                       # end-to-end (see test/*.test.ts)
 npm run build        # tsc -p tsconfig.build.json -- compiles src/ -> dist/
@@ -230,6 +285,7 @@ src/
   smoke.ts                    standalone smoke-test script (see npm run smoke)
   lib/
     result.ts                 CallToolResult helpers (jsonResult / errorResult)
+    codeExec.ts               the HONESTY_MCP_ENABLE_CODE_EXEC switch and its default constant
     buildFunction.ts           turns a JS source string into a callable function
     runFunctionJob.ts          runs that function (or the divergence groupBySource case)
                                inside a worker_threads Worker with a bounded timeout
@@ -254,5 +310,7 @@ test/
                                 error propagation, timeout enforcement, env var parsing)
   workerTimeout.test.ts        end-to-end proof that the three code-execution tools stay
                                 bounded by the worker-thread timeout instead of hanging
+  codeExec.test.ts             the code-execution switch: unset, set, garbage values, other tools
+  fileRead.test.ts             static-imports mode never reads a path the caller names
   drift.test.ts                versions and README tool list match the code
 ```

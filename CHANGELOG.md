@@ -5,6 +5,23 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+
+- **Breaking: code execution is now off by default.** The three paths that run JavaScript the caller sends (`check_payout_invariance` runtime mode, `check_mutation_invariance`, and `compute_divergence`'s `config.groupBySource`) are only available when `HONESTY_MCP_ENABLE_CODE_EXEC` is set to exactly `1`. Any other value, including `true`, `yes` or an empty string, leaves them off. While off: `check_mutation_invariance` is not registered (13 tools instead of 14), `check_payout_invariance` lists `static-imports` mode only, `compute_divergence` does not accept `groupBySource`, the initialize result names the variable, and `runFunctionJob` refuses to start a worker. To keep the old behavior, set the variable in your MCP client's server config. Enabling it still runs the code with the server's filesystem, network and environment access; the worker thread only bounds time and is not a sandbox. The default is the single constant `CODE_EXEC_ENABLED_BY_DEFAULT` in `src/lib/codeExec.ts`.
+- **Breaking: `check_payout_invariance` `static-imports` mode no longer accepts a list of file paths.** The wrapped kit read every path it was given and returned the matching lines, so an agent could read any readable file on the machine. `files` must now be a map of path to file content that the caller sends; a list is rejected with an error. Content you send is scanned exactly as before.
+
+### Added
+
+- `readOnlyHint: true` and `openWorldHint: false` tool annotations on the tools that do no I/O. These are hints for clients, not enforcement.
+- `test/drift.test.ts` fails when the versions in `package.json`, `src/server.ts` and `server.json` disagree, when the CHANGELOG has no entry for the current version, or when the README's tool tables and totals differ from the tools the server registers.
+- The stdio probe now checks both the default (code execution off) and enabled sessions, and that file text is never returned for a path list.
+
+### Fixed
+
+- Test timing: the export-context CLI test and the worker-job tests now have fixed, generous time budgets, so they no longer fail on a busy machine. No assertion changed.
+
 ## [0.2.1] - 2026-10-07
 
 ### Security
