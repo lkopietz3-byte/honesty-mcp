@@ -14,6 +14,7 @@ export function registerGroundingTool(server: McpServer): void {
     "check_grounding",
     {
       title: "Check citation grounding",
+      annotations: { readOnlyHint: true, openWorldHint: false },
       description:
         "Checks citation markers and lexical support in AI-generated text. Splits `text` into checked units and " +
         "classifies each one against `evidence`: 'grounded' (cites a marker accepted by the default lexical " +

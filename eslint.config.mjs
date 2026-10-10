@@ -56,7 +56,7 @@ export default defineConfig(
   },
   {
     name: 'kit/node-esm-scripts',
-    files: ['scripts/**/*.mjs', 'examples/**/*.mjs', 'eslint.config.mjs'],
+    files: ['scripts/**/*.mjs', 'examples/**/*.mjs', 'eslint.config.mjs', 'vitest.config.mjs'],
     extends: [js.configs.recommended],
     languageOptions: {
       ecmaVersion: 'latest',

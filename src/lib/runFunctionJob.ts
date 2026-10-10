@@ -44,6 +44,7 @@
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { Worker } from "node:worker_threads";
+import { assertCodeExecEnabled } from "./codeExec.js";
 
 const requireFromHere = createRequire(import.meta.url);
 
@@ -210,6 +211,15 @@ type WorkerMessage<T> = { ok: true; result: T } | { ok: false; message: string }
  */
 export function runFunctionJob<T>(job: FunctionJob, timeoutMs: number = resolveWorkerTimeoutMs()): Promise<T> {
   return new Promise<T>((resolve, reject) => {
+    // The single choke point where caller JavaScript is executed: fail closed
+    // before anything is spawned unless the operator turned code execution on
+    // (see lib/codeExec.ts).
+    try {
+      assertCodeExecEnabled();
+    } catch (err) {
+      reject(err instanceof Error ? err : new Error(String(err)));
+      return;
+    }
     if (!Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > MAX_WORKER_TIMEOUT_MS) {
       reject(new RangeError(`runFunctionJob: timeoutMs must be from 1 to ${MAX_WORKER_TIMEOUT_MS}.`));
       return;

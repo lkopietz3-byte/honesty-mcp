@@ -30,6 +30,7 @@ import {
   describeDivergence,
   type DivergenceResult,
 } from "advice-ledger-kit";
+import { CODE_EXEC_ENV_VAR, isCodeExecEnabled } from "../lib/codeExec.js";
 import { runFunctionJob } from "../lib/runFunctionJob.js";
 import { errorMessage, errorResult, jsonResult } from "../lib/result.js";
 
@@ -173,6 +174,7 @@ export function registerAdviceLedgerGradeTool(server: McpServer): void {
     "grade_decision",
     {
       title: "Grade a decision against what happened after it",
+      annotations: { readOnlyHint: true, openWorldHint: false },
       description:
         "Grades one recommendation-and-decision pair against a before/after observation log. Compares a pre-" +
         "decision BASELINE window to a post-decision, exposure-aligned RESULT window on the same subjectId + " +
@@ -248,52 +250,72 @@ const judgmentPairSchema = z.object({
   id: z.string().optional().describe("Optional identifier, carried through into `examples` on a divergence report."),
 });
 
-const divergenceConfigSchema = z
-  .object({
-    minComparablePairs: z.number().int().min(1).optional().describe("Minimum pairs where both judges spoke. Default 10."),
-    minDivergentCount: z.number().int().min(1).optional().describe("Minimum disagreements. Default 3."),
-    minDivergentRate: z
-      .number()
-      .min(0)
-      .max(1)
-      .optional()
-      .describe(
-        "Minimum disagreement share of comparable pairs, 0 to 1. Default 0.05. Both this AND " +
-          "minDivergentCount must clear before divergence is 'reportable' -- either floor alone lets pure " +
-          "noise through (a 100% rate on 3 of 3 occasions, or a real rate buried in a huge sample).",
-      ),
-    minResolvedDivergent: z
-      .number()
-      .int()
-      .min(1)
-      .optional()
-      .describe("Minimum disagreements that also have a later outcome, before naming who was right. Default 3."),
-    exampleLimit: z.number().int().min(0).optional().describe("How many divergent pairs to carry through as examples. Default 10."),
-    groupBySource: z
-      .string()
-      .optional()
-      .describe(
-        "JS source for a pure function `(pair) => string | null` -- the real kit's `groupBy` config. MCP " +
-          "arguments are JSON and cannot carry a function value, so when supplied this runs the whole " +
-          "computeDivergence call in a worker thread with a bounded timeout (default 10s, see README) instead " +
-          "of on the main thread (same trust model as check_payout_invariance's rankFnSource -- only pass code " +
-          "you wrote or trust). Return null from it to leave a pair out of the per-group breakdown entirely. " +
-          "Omit to use the library's own default, which buckets by each pair's own `group` field -- that " +
-          "covers the common case with no code execution (or worker) at all.",
-      ),
-  })
-  .optional()
-  .describe(
-    "Floors, thresholds, and optional custom grouping, every field optional with a library default (see " +
-      "advice-ledger-kit's DEFAULT_DIVERGENCE_CONFIG). Omit entirely to use the library's defaults.",
-  );
+const divergenceConfigFields = {
+  minComparablePairs: z.number().int().min(1).optional().describe("Minimum pairs where both judges spoke. Default 10."),
+  minDivergentCount: z.number().int().min(1).optional().describe("Minimum disagreements. Default 3."),
+  minDivergentRate: z
+    .number()
+    .min(0)
+    .max(1)
+    .optional()
+    .describe(
+      "Minimum disagreement share of comparable pairs, 0 to 1. Default 0.05. Both this AND " +
+        "minDivergentCount must clear before divergence is 'reportable' -- either floor alone lets pure " +
+        "noise through (a 100% rate on 3 of 3 occasions, or a real rate buried in a huge sample).",
+    ),
+  minResolvedDivergent: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe("Minimum disagreements that also have a later outcome, before naming who was right. Default 3."),
+  exampleLimit: z.number().int().min(0).optional().describe("How many divergent pairs to carry through as examples. Default 10."),
+};
+
+const groupBySourceField = {
+  groupBySource: z
+    .string()
+    .optional()
+    .describe(
+      "JS source for a pure function `(pair) => string | null` -- the real kit's `groupBy` config. MCP " +
+        "arguments are JSON and cannot carry a function value, so when supplied this runs the whole " +
+        "computeDivergence call in a worker thread with a bounded timeout (default 10s, see README) instead " +
+        "of on the main thread (same trust model as check_payout_invariance's rankFnSource -- only pass code " +
+        "you wrote or trust). Return null from it to leave a pair out of the per-group breakdown entirely. " +
+        "Omit to use the library's own default, which buckets by each pair's own `group` field -- that " +
+        "covers the common case with no code execution (or worker) at all.",
+    ),
+};
+
+const DIVERGENCE_CONFIG_DESCRIPTION =
+  "Floors, thresholds, and optional custom grouping, every field optional with a library default (see " +
+  "advice-ledger-kit's DEFAULT_DIVERGENCE_CONFIG). Omit entirely to use the library's defaults.";
+
+/**
+ * Builds the `config` input. `groupBySource` runs caller-supplied JavaScript,
+ * so it is only listed while code execution is enabled (see lib/codeExec.ts).
+ * While it is off the object is strict: sending `groupBySource` is a
+ * validation error instead of being silently dropped.
+ */
+function buildDivergenceConfigSchema(codeExec: boolean) {
+  const full = z.object({ ...divergenceConfigFields, ...groupBySourceField });
+  // Same type either way so the handler can read `groupBySource`; at runtime the
+  // strict schema rejects the key while code execution is off.
+  const chosen = codeExec ? full : (full.omit({ groupBySource: true }).strict() as unknown as typeof full);
+  return chosen.optional().describe(DIVERGENCE_CONFIG_DESCRIPTION);
+}
 
 /** Registers `compute_divergence` on `server`. */
 export function registerAdviceLedgerDivergenceTool(server: McpServer): void {
+  const codeExec = isCodeExecEnabled();
   server.registerTool(
     "compute_divergence",
     {
       title: "Measure where two judges disagree, and who was right",
+      // Pure unless the optional groupBySource (caller-supplied JavaScript) is enabled and used.
+      annotations: codeExec
+        ? { readOnlyHint: false, openWorldHint: true }
+        : { readOnlyHint: true, openWorldHint: false },
       description:
         "Computes how often two independent judges (e.g. an automated engine and a human override) rated the " +
         "same object differently, and -- where a later outcome exists to settle it -- reports engineRight and " +
@@ -304,7 +326,9 @@ export function registerAdviceLedgerDivergenceTool(server: McpServer): void {
         "noise through. Calibration (who was right) carries its own separate floor (minResolvedDivergent) and " +
         "its own status, so a population can legitimately have reportable divergence and refused calibration " +
         "at the same time: plenty of disagreements, not enough of them settled by a later outcome yet. Supply " +
-        "`group` on each pair (or a custom config.groupBySource) to also get a sorted per-group breakdown " +
+        (codeExec
+          ? "`group` on each pair (or a custom config.groupBySource) to also get a sorted per-group breakdown "
+          : `\`group\` on each pair (a custom config.groupBySource is off unless the server operator sets ${CODE_EXEC_ENV_VAR}=1) to also get a sorted per-group breakdown `) +
         "alongside the overall report. Use this whenever a system has both an automated judgment and a human " +
         "override/correction recorded for the same objects, to find out whether overruling the system is " +
         "actually earning its keep. For grading one recommendation's own before/after outcome window instead " +
@@ -313,7 +337,7 @@ export function registerAdviceLedgerDivergenceTool(server: McpServer): void {
         pairs: z
           .array(judgmentPairSchema)
           .describe("Every occasion both judges could have spoken on. Pairs missing one judgment are still counted, just not comparable."),
-        config: divergenceConfigSchema,
+        config: buildDivergenceConfigSchema(codeExec),
       },
     },
     async ({ pairs, config }) => {

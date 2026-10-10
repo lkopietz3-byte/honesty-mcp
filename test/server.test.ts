@@ -270,7 +270,7 @@ describe("check_payout_invariance (payout-invariance-kit)", () => {
 
   it.each([
     [{}, ["payout"], "files is empty"],
-    [[], ["payout"], "files is empty"],
+    // A list of paths (including an empty one) is rejected outright now; see test/fileRead.test.ts.
     [{ "a.ts": "x" }, ["payout", "\u200b"], "payoutIdentifiers[1] is blank"],
   ])("static-imports mode reports an empty scope or blank identifier as a tool error, never CLEAN", async (files, payoutIdentifiers, message) => {
     const result = (await client.callTool({

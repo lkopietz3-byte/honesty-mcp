@@ -72,6 +72,7 @@ export function registerTrustAnonymousTool(server: McpServer): void {
     "assess_anonymous_authenticity",
     {
       title: "Score how organic unattributed signals look",
+      annotations: { readOnlyHint: true, openWorldHint: false },
       description:
         "Scores how organic a corpus of UNATTRIBUTED, scraped sentiment signals (crawled mentions, imported " +
         "reviews with no verifiable identity, aggregator feeds) looks, weighing a positive composite of " +

@@ -43,6 +43,7 @@ export function registerCorroborationTool(server: McpServer): void {
     "corroborate_evidence",
     {
       title: "Grade evidence corroboration for a claim",
+      annotations: { readOnlyHint: true, openWorldHint: false },
       description:
         "Grades the supplied evidence for a claim and reports two things: the evidence direction " +
         "('supports', 'contradicts', 'mixed' or 'none') and a verdict for how strong the evidence is in that " +

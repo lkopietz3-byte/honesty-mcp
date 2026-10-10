@@ -11,6 +11,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { InvarianceResult } from "mutation-invariance-kit";
+import { isCodeExecEnabled } from "../lib/codeExec.js";
 import { runFunctionJob } from "../lib/runFunctionJob.js";
 import { errorMessage, errorResult, jsonResult } from "../lib/result.js";
 
@@ -30,12 +31,19 @@ const scenarioSchema = z.object({
     .describe("Informational label for which axis this scenario tests. Purely for grouping/filtering in reports."),
 });
 
-/** Registers `check_mutation_invariance` on `server`. */
+/**
+ * Registers `check_mutation_invariance` on `server`. This tool only runs
+ * caller-supplied JavaScript, so while code execution is off (the default,
+ * see lib/codeExec.ts) it is not registered at all.
+ */
 export function registerMutationInvarianceTool(server: McpServer): void {
+  if (!isCodeExecEnabled()) return;
   server.registerTool(
     "check_mutation_invariance",
     {
       title: "Check whether a decision function ignores a given input",
+      // Runs caller-supplied code with this process's privileges: not read-only, and open-world.
+      annotations: { readOnlyHint: false, openWorldHint: true },
       description:
         "Checks -- for the scenarios you supply, not a formal proof for every possible input -- whether a " +
         "decision, score, or ranking function's output changes depending on a variable it claims not to " +

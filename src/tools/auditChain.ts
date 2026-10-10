@@ -31,6 +31,7 @@ export function registerAuditChainTools(server: McpServer): void {
     "append_audit_entry",
     {
       title: "Append a tamper-evident audit-chain entry",
+      annotations: { readOnlyHint: true, openWorldHint: false },
       description:
         "Appends one entry to an append-only, hash-chained audit log and returns the new (longer) chain. " +
         `Each entry's hash binds its payload, index, createdAt, a fixed format tag (formatVersion, currently ` +
@@ -63,6 +64,7 @@ export function registerAuditChainTools(server: McpServer): void {
     "verify_audit_chain",
     {
       title: "Verify a tamper-evident audit chain",
+      annotations: { readOnlyHint: true, openWorldHint: false },
       description:
         "Independently re-verifies a hash chain from genesis: recomputes every entry's hash and confirms " +
         "each entry's prevHash matches the preceding entry's entryHash. Detects a mutated payload (stored " +

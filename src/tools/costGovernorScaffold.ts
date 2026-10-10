@@ -82,6 +82,7 @@ export function registerCostGovernorScaffoldTool(server: McpServer): void {
     "scaffold_cost_governor",
     {
       title: "Scaffold the cost-governor-kit spend-safety pattern",
+      annotations: { readOnlyHint: true, openWorldHint: false },
       description:
         "cost-governor-kit is a RUNTIME LIBRARY your app installs and calls at the moment it's about to make " +
         "an AI API call -- it is not something this MCP server can 'check' on demand the way it checks a " +

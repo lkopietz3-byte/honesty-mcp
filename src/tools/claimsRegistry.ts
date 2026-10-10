@@ -36,6 +36,7 @@ export function registerClaimsRegistryTool(server: McpServer): void {
     "check_claims_registry",
     {
       title: "Check public claims for stale or missing evidence",
+      annotations: { readOnlyHint: true, openWorldHint: false },
       description:
         "Keeps public-facing product claims honest over time by checking each one against its own claimed " +
         "evidence -- the SOC2-control-evidence pattern applied to marketing/product copy instead of " +

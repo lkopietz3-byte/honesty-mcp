@@ -35,6 +35,7 @@ export function registerProvenanceTool(server: McpServer): void {
     "check_provenance_claims",
     {
       title: "Check claims for unbacked certainty language",
+      annotations: { readOnlyHint: true, openWorldHint: false },
       description:
         "Scans reader-facing claims for certainty-implying language (\"(verified)\", \"independently " +
         "verified\", \"guaranteed\", \"fact-checked\", \"100% accurate\", ...) that isn't backed by an " +

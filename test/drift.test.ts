@@ -8,6 +8,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { CODE_EXEC_ENV_VAR } from "../src/lib/codeExec.js";
+import { WORKER_TIMEOUT_ENV_VAR } from "../src/lib/runFunctionJob.js";
 import { createServer, SERVER_VERSION } from "../src/server.js";
 
 function readRepoFile(name: string): string {
@@ -23,7 +25,7 @@ interface PackageJson {
 interface ServerJson {
   name: string;
   version: string;
-  packages: { identifier: string; version: string }[];
+  packages: { identifier: string; version: string; environmentVariables?: { name: string }[] }[];
 }
 
 const pkg = JSON.parse(readRepoFile("package.json")) as PackageJson;
@@ -70,6 +72,12 @@ describe("version drift", () => {
   it("server.json names the same registry entry and npm package as package.json", () => {
     expect(serverJson.name).toBe(pkg.mcpName);
     expect(serverJson.packages[0]?.identifier).toBe(pkg.name);
+  });
+
+  it("server.json lists every environment variable the code reads, and the README names them", () => {
+    const listed = (serverJson.packages[0]?.environmentVariables ?? []).map((v) => v.name).sort();
+    expect(listed).toEqual([CODE_EXEC_ENV_VAR, WORKER_TIMEOUT_ENV_VAR].sort());
+    for (const name of listed) expect(readme, `README should mention ${name}`).toContain(name);
   });
 
   it("CHANGELOG.md has a dated entry for the current version", () => {

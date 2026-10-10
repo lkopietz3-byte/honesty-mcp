@@ -56,6 +56,7 @@ export function registerAgentReceiptScaffoldTool(server: McpServer): void {
     "scaffold_agent_receipts",
     {
       title: "Scaffold the agent-receipt-kit authorization pattern",
+      annotations: { readOnlyHint: true, openWorldHint: false },
       description:
         "agent-receipt-kit is a RUNTIME LIBRARY your own agent-orchestration code imports and calls at two " +
         "specific moments (issue a WorkPacket before an agent runs, verify its AgentClaim after) -- it is not " +

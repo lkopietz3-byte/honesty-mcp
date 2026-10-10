@@ -61,6 +61,7 @@ export function registerTrustIdentifiedTool(server: McpServer): void {
     "score_trust_identified",
     {
       title: "Score an entity from known contributors",
+      annotations: { readOnlyHint: true, openWorldHint: false },
       description:
         "Scores one entity (or one dimension of one entity -- quality, reliability, communication, ...) from " +
         "signals contributed by KNOWN, identified sources: reviewer accounts, raters, inspectors, verified " +
