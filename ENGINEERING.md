@@ -18,8 +18,10 @@
    provenance validation, claims staleness, audit-chain hashing, or
    decision grading — it only translates between MCP/Zod and the kit's own
    types.
-4. `SERVER_VERSION` (`src/server.ts`) and `package.json`'s `version` are two
-   separate values with no automated sync — bump both by hand on release.
+4. `SERVER_VERSION` (`src/server.ts`), `package.json`'s `version` and both
+   versions in `server.json` are separate values that you bump by hand on
+   release. `test/drift.test.ts` fails if they disagree, and also checks that
+   the README's tool tables and tool totals match what the server registers.
 5. Zero runtime dependencies beyond `@modelcontextprotocol/sdk`, `zod`, and
    the eleven published sibling kits (semver ranges, not `file:` links).
 

@@ -97,8 +97,8 @@ publisher (see
 
 ## Tools
 
-**9 content-checking tools' worth of kits, 12 tools** (kits 1–9 — hand one
-of these real content or data, get back a structured verdict):
+**9 content-checking kits, 12 tools** (kits 1–9 — hand one of these real
+content or data, get back a structured verdict):
 
 | Tool | Wraps | One-line purpose |
 |---|---|---|
@@ -189,8 +189,8 @@ server to untrusted, remote, or adversarial input.
   behavior** — see "A note on the code-execution tools" above. It is not a
   sandbox.
 - **`SERVER_VERSION` (`src/server.ts`) and `package.json`'s `version` are
-  two separate values with no automated sync.** They happen to agree today;
-  a future release could forget to bump one.
+  still bumped by hand.** `test/drift.test.ts` now fails if they, or the two
+  versions in `server.json`, disagree, but nothing bumps them for you.
 
 ## Development
 
@@ -254,4 +254,5 @@ test/
                                 error propagation, timeout enforcement, env var parsing)
   workerTimeout.test.ts        end-to-end proof that the three code-execution tools stay
                                 bounded by the worker-thread timeout instead of hanging
+  drift.test.ts                versions and README tool list match the code
 ```
