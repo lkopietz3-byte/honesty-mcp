@@ -80,7 +80,7 @@ export function registerAuditChainTools(server: McpServer): void {
         "`anchor.index` has exactly that `entryHash` -- this also catches a full rewrite from genesis, but " +
         "entries after the anchor are only checked for internal consistency, not against anything external. " +
         "Passing neither option means a truncate-and-re-append (or a full rewrite from genesis) can pass as " +
-        "'valid'. Proves the chain is internally consistent and unaltered since it was hashed (and, with " +
+        "'valid'. An empty chain is 'valid' with nothing checked (newer kits report `entriesChecked: 0`). Proves the chain is internally consistent and unaltered since it was hashed (and, with " +
         "`anchor`, unaltered up to the anchor point); it does NOT prove nobody with write access ever rewrote " +
         "the whole chain from genesis when no anchor is supplied (tamper-evident, not tamper-proof). Use this " +
         "to audit a chain you did not produce yourself before trusting it.",
@@ -123,9 +123,12 @@ export function registerAuditChainTools(server: McpServer): void {
             ? { ...(expectedMinLength !== undefined ? { expectedMinLength } : {}), ...(anchor !== undefined ? { anchor } : {}) }
             : undefined;
         const result = await verifyChain(chain as ChainEntry[], undefined, options);
-        const summary = result.valid
-          ? `VALID: all ${chain.length} entr${chain.length === 1 ? "y" : "ies"} verified.`
-          : `INVALID: ${result.reason}`;
+        const summary = !result.valid
+          ? `INVALID: ${result.reason}`
+          : chain.length === 0
+            ? "VALID (empty chain): nothing was checked. An empty chain passes by default, so this is not evidence " +
+              "that a log has content; pass `expectedMinLength` or an `anchor` if entries should exist."
+            : `VALID: all ${chain.length} entr${chain.length === 1 ? "y" : "ies"} verified.`;
         return jsonResult(summary, result);
       } catch (err) {
         return errorResult(errorMessage(err));

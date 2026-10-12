@@ -55,7 +55,10 @@ export function registerMutationInvarianceTool(server: McpServer): void {
         "or any other 'should not depend on X' claim; use check_payout_invariance specifically for the " +
         "payout/commission axis (it also has a static-import-grep mode this tool doesn't need). Pass JS " +
         "source for the function under test and each mutation -- this runs in a worker thread with a bounded " +
-        "timeout, not a sandbox, so only pass code you wrote or trust. A pass covers only the mutations you " +
+        "timeout, not a sandbox, so only pass code you wrote or trust. The function must be deterministic and " +
+        "must not modify its argument (copy before sorting or editing: `[...list].sort()`); an edit made in place " +
+        "to the input is reported as an error, in the newer kit also for the mutated copies. " +
+        "A pass covers only the mutations you " +
         "ran: it says nothing about values you didn't try, fields changed one at a time but never together, " +
         "or a proxy field you never touched (a ZIP code standing in for race, a graduation year for age). " +
         "Re-run this in CI whenever the function changes.",

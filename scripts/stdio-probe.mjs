@@ -26,6 +26,10 @@
 //     f. Every line the server writes to stdout parses as JSON-RPC, even when
 //        the caller's code calls console.log, console.error or
 //        process.stdout.write.
+//     g. Every tool the server lists answers one small valid call without an
+//        error, so a wrapped kit that throws on first use is caught here. A
+//        newly added tool must be added to ONE_VALID_CALL_PER_TOOL below or
+//        this probe fails.
 
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -44,6 +48,53 @@ writeFileSync(canaryPath, `${CANARY} must never be returned\n`);
 
 const noisy =
   'console.log("PROBE_STDOUT_LOG"); console.error("PROBE_STDERR_LOG"); process.stdout.write("PROBE_RAW_WRITE\\n");';
+
+const NOW = '2026-02-01T00:00:00Z';
+
+/** One small valid call per tool. Used to check that every listed tool answers without an error. */
+const ONE_VALID_CALL_PER_TOOL = {
+  check_grounding: { text: 'The sky is blue [[cite:e1]].', evidence: { e1: 'The sky is blue.' } },
+  corroborate_evidence: {
+    signals: [
+      { source: 'https://a.example.org/x', kind: 'structural', vote: 'supports', detail: 'schema says so' },
+      { source: 'https://b.example.net/y', kind: 'textual', vote: 'supports', detail: 'text says so' },
+    ],
+    coverage: 'strong',
+  },
+  check_payout_invariance: { mode: 'static-imports', files: { 'rank.ts': 'const score = 1;' }, payoutIdentifiers: ['commission'] },
+  check_mutation_invariance: {
+    fnSource: '(input) => input.score',
+    baseInput: { score: 1, zip: '68101' },
+    scenarios: [{ name: 'change zip', mutateSource: '(i) => ({ ...i, zip: "10001" })' }],
+  },
+  score_trust_identified: { signals: [], now: NOW, prior: 50 },
+  assess_anonymous_authenticity: { signals: [], now: NOW },
+  check_provenance_claims: { claims: [{ id: 'a', text: 'Plain text.', tier: 'editorial' }] },
+  check_claims_registry: {
+    claims: [{ id: 'c1', text: 'It is fast.', evidenceRef: 'docs/bench.md', verifiedAt: '2026-01-15' }],
+    maxAgeDays: 90,
+    now: NOW,
+  },
+  append_audit_entry: { chain: [], payload: { step: 0 } },
+  verify_audit_chain: { chain: [] },
+  grade_decision: {
+    decision: { recommendationId: 'r1', status: 'adopted', decidedAt: '2026-01-02' },
+    recommendation: { id: 'r1', subjectId: 's', checkKey: 'k', proposedAt: '2026-01-01' },
+    observations: [],
+  },
+  compute_divergence: { pairs: [{ engineJudgment: 'a', humanJudgment: 'a' }] },
+  scaffold_agent_receipts: {},
+  scaffold_cost_governor: {},
+};
+
+/** Calls every listed tool once with its small valid input and fails on any error result. */
+async function callEveryTool(session, names) {
+  for (const name of names) {
+    const args = ONE_VALID_CALL_PER_TOOL[name];
+    assert.ok(args, `no probe call is defined for tool ${name}; add it to ONE_VALID_CALL_PER_TOOL`);
+    await session.callTool(name, args);
+  }
+}
 
 /** Starts the server with the code-execution switch set to `switchValue` (undefined = unset). */
 function startSession(switchValue) {
@@ -139,6 +190,7 @@ try {
   assert.ok(!('groupBySource' in (offDivergence?.inputSchema?.properties?.config?.properties ?? {})));
 
   await active.callTool('check_grounding', { text: 'The sky is blue [e1].', evidence: { e1: 'The sky is blue.' } });
+  await callEveryTool(active, offNames);
 
   const pathList = await active.callToolRaw('check_payout_invariance', {
     mode: 'static-imports',
@@ -183,6 +235,7 @@ try {
   });
 
   await active.callTool('check_grounding', { text: 'The sky is blue [e1].', evidence: { e1: 'The sky is blue.' } });
+  await callEveryTool(active, onNames);
 
   assert.deepEqual(active.nonJsonLines, [], `non-JSON lines reached stdout: ${JSON.stringify(active.nonJsonLines)}`);
   assert.ok(!active.stdoutText.includes('PROBE_STDOUT_LOG'), 'caller console.log must not reach stdout');

@@ -95,6 +95,7 @@ export function registerAgentReceiptScaffoldTool(server: McpServer): void {
             "3. After the agent reports back: verifyReceipt(packet, claim, currentState?) -> ReceiptResult.",
             "4. Act only on receipt.accepted === true, and read it as 'no mismatch found against the packet and supplied state', not as verified truth. Check receipt.coverage for which claimed facts were actually compared. Log receipt.reason either way -- it's human-readable.",
             "5. Optional: createRefutationTrail to keep a running history of claims that got refuted.",
+            "6. agent-receipt-kit 0.3 and later: pass { requireCoverage: true } as the fourth argument of verifyReceipt to refuse a claim while any claimed fact was not compared with the current state (receipt.uncoveredFactKeys lists them), and act on receipt.snapshot, the copy of the claim taken when it was read, rather than the claim object you passed in.",
           ],
           starterSnippet: STARTER_SNIPPET,
         };

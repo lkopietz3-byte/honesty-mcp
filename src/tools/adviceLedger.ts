@@ -33,6 +33,7 @@ import {
 import { CODE_EXEC_ENV_VAR, isCodeExecEnabled } from "../lib/codeExec.js";
 import { runFunctionJob } from "../lib/runFunctionJob.js";
 import { errorMessage, errorResult, jsonResult } from "../lib/result.js";
+import { kitAtLeast } from "../lib/kitVersion.js";
 
 // ---------------------------------------------------------------------------
 // grade_decision
@@ -153,7 +154,8 @@ const gradeConfigSchema = z
       .min(1)
       .optional()
       .describe(
-        "How many bad exposed post-decision observations it takes to overturn the decision. Defaults to " +
+        "How many bad exposed post-decision observations it takes to overturn the decision (a fixed count, " +
+          "not a rate, however long the window). Defaults to " +
           "proposeThreshold (symmetric). Setting this BELOW proposeThreshold throws -- refuting more cheaply " +
           "than you proposed is a thumb on the scale, not conservatism.",
       ),
@@ -168,6 +170,52 @@ const gradeConfigSchema = z
       "DEFAULT_GRADE_CONFIG). Omit entirely to use the library's defaults.",
   );
 
+/**
+ * The grade_decision description. advice-ledger-kit 0.3 changed one verdict: an
+ * exact tie in the bad rate is 'not-holding' (0.2 graded it 'holding'), so the
+ * rate rule is worded for the installed kit.
+ */
+function gradeDescription(): string {
+  const strict = kitAtLeast("advice-ledger-kit", "0.3.0");
+  const holding = strict
+    ? "'holding' (the exposed post-decision window stayed under `refuteThreshold` bad observations AND its bad " +
+      "rate is lower than the baseline's)"
+    : "'holding' (the exposed post-decision window stayed under `refuteThreshold` bad observations AND its bad " +
+      "rate is not higher than the baseline's)";
+  const notHolding = strict
+    ? "'not-holding' (EITHER the exposed post-decision window hit `refuteThreshold` bad observations, OR its bad " +
+      "rate is not lower than the baseline's, even below that count -- 1 bad of 10 before, 1 bad of 3 exposed " +
+      "since is 'not-holding', and so is an exact tie such as 1 of 3 against 1 of 3)"
+    : "'not-holding' (EITHER the exposed post-decision window hit `refuteThreshold` bad observations, OR its bad " +
+      "rate is higher than the baseline's, even below that count -- 1 bad of 10 before, 1 bad of 3 exposed " +
+      "since is 'not-holding', not 'holding', despite the count staying under the default bar of 2)";
+  return (
+    "Grades one recommendation-and-decision pair against a before/after observation log. Compares a pre-" +
+    "decision BASELINE window to a post-decision, exposure-aligned RESULT window on the same subjectId + " +
+    `checkKey, and returns ${holding}, ${notHolding}, or ` +
+    "'refused' (the evidence didn't clear a floor -- see refusalCodes for exactly which one, never a " +
+    "vague 'unproven'). The rate comparison is exact -- it cross-multiplies the raw counts rather than " +
+    "comparing the rounded `badRate` fields or the sign of `badRateDelta`, so a `not-holding` can occur " +
+    "even when both windows display the same 3-place `badRate`. The refute bar is a fixed count, not a rate: " +
+    "5 bad of 100 before and 2 of 500 since is 'not-holding' at the default threshold of 2, although the rate " +
+    "fell from 5% to 0.4%; for long windows, bound the window or raise `refuteThreshold`. " +
+    "Always show `badRateDelta` " +
+    "and the raw `baseline`/`result` counts next to the verdict, don't quote 'holding' on its own, and read " +
+    "`verdict` and `refusalCodes` rather than the prose sentence. The " +
+    "verdict grades the DECISION, not just whether advice was taken: a DISMISSED recommendation whose " +
+    "problem later surfaced also grades 'not-holding', because the evidence sided with the advice either " +
+    "way. Two things this tool refuses to let slide: (1) 'nothing has gone wrong since' only counts as a " +
+    "result if the baseline shows the problem existed before -- otherwise it's " +
+    "'baseline_lacks_negative_signal'; (2) only observations where the advice could actually have applied " +
+    "(exposed === true) can create or reverse the headline verdict -- everything else is reported " +
+    "separately as `secondary` (whose own `wouldBeVerdict` can itself be 'refused'), labelled " +
+    "non-headline, and can never become the headline. Use this to close the loop on any recommender/" +
+    "advisor system that logs recommendations, human accept/reject calls, and later outcomes, instead of " +
+    "letting advice quality go unmeasured forever. For grading a whole population of engine-vs-human calls " +
+    "at once (rather than one decision against its own before/after window), use compute_divergence instead."
+  );
+}
+
 /** Registers `grade_decision` on `server`. */
 export function registerAdviceLedgerGradeTool(server: McpServer): void {
   server.registerTool(
@@ -175,30 +223,7 @@ export function registerAdviceLedgerGradeTool(server: McpServer): void {
     {
       title: "Grade a decision against what happened after it",
       annotations: { readOnlyHint: true, openWorldHint: false },
-      description:
-        "Grades one recommendation-and-decision pair against a before/after observation log. Compares a pre-" +
-        "decision BASELINE window to a post-decision, exposure-aligned RESULT window on the same subjectId + " +
-        "checkKey, and returns 'holding' (the exposed post-decision window stayed under `refuteThreshold` bad " +
-        "observations AND its bad rate is not higher than the baseline's), 'not-holding' (EITHER the exposed " +
-        "post-decision window hit `refuteThreshold` bad observations, OR its bad rate is higher than the " +
-        "baseline's, even below that count -- 1 bad of 10 before, 1 bad of 3 exposed since is 'not-holding', " +
-        "not 'holding', despite the count staying under the default bar of 2), or " +
-        "'refused' (the evidence didn't clear a floor -- see refusalCodes for exactly which one, never a " +
-        "vague 'unproven'). The rate comparison is exact -- it cross-multiplies the raw counts rather than " +
-        "comparing the rounded `badRate` fields or the sign of `badRateDelta`, so a `not-holding` can occur " +
-        "even when both windows display the same 3-place `badRate`. Always show `badRateDelta` " +
-        "and the raw `baseline`/`result` counts next to the verdict, don't quote 'holding' on its own. The " +
-        "verdict grades the DECISION, not just whether advice was taken: a DISMISSED recommendation whose " +
-        "problem later surfaced also grades 'not-holding', because the evidence sided with the advice either " +
-        "way. Two things this tool refuses to let slide: (1) 'nothing has gone wrong since' only counts as a " +
-        "result if the baseline shows the problem existed before -- otherwise it's " +
-        "'baseline_lacks_negative_signal'; (2) only observations where the advice could actually have applied " +
-        "(exposed === true) can create or reverse the headline verdict -- everything else is reported " +
-        "separately as `secondary` (whose own `wouldBeVerdict` can itself be 'refused'), labelled " +
-        "non-headline, and can never become the headline. Use this to close the loop on any recommender/" +
-        "advisor system that logs recommendations, human accept/reject calls, and later outcomes, instead of " +
-        "letting advice quality go unmeasured forever. For grading a whole population of engine-vs-human calls " +
-        "at once (rather than one decision against its own before/after window), use compute_divergence instead.",
+      description: gradeDescription(),
       inputSchema: {
         decision: decisionSchema.describe("The human's call on the recommendation."),
         recommendation: recommendationSchema.describe("The advice being graded."),
