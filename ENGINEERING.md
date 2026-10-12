@@ -31,6 +31,14 @@
    the README's tool tables and tool totals match what the server registers.
 5. Zero runtime dependencies beyond `@modelcontextprotocol/sdk`, `zod`, and
    the eleven published sibling kits (semver ranges, not `file:` links).
+6. Where a wrapped kit has two release lines (see "Kit versions" in the README),
+   an input or description that exists only in the newer line is gated on the
+   installed version (`src/lib/kitVersion.ts`). A new input is passed to the kit
+   only when the kit supports it and is refused with an error naming the
+   version otherwise, because an older kit would ignore it silently and the
+   result would look as if it had been applied. `test/kitCompat.test.ts` takes
+   the matching branch for the installed line; run the suite once per line
+   before a release.
 
 ## Setup and verification
 

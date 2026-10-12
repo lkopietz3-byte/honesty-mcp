@@ -139,17 +139,17 @@ content or data, get back a structured verdict):
 
 | Tool | Wraps | One-line purpose |
 |---|---|---|
-| `check_grounding` | grounding-kit | Checks citation structure in AI-generated text, sentence by sentence: uncited claims, honest placeholders, and citations whose marker is missing or whose evidence doesn't match lexically. Structural only; it does not verify that the evidence is true. |
-| `corroborate_evidence` | corroboration-kit | Reports the evidence direction (supports / contradicts / mixed / none) and a graded verdict from distinct sources — not a vote count. Independence is not verified, and `confirmed` can mean confirmed-contradicted, so read the direction first. |
-| `check_payout_invariance` | payout-invariance-kit | Checks, for the scenarios you supply, whether a ranking engine's output changes with who pays more (`runtime` mode, off unless `HONESTY_MCP_ENABLE_CODE_EXEC=1`) or whether payout identifiers appear in source text you send (`static-imports` mode, always available; it never reads files from disk). Not a formal proof for every possible payout configuration. |
+| `check_grounding` | grounding-kit | Checks citation structure in AI-generated text, sentence by sentence: uncited claims, honest placeholders, and citations whose marker is missing or whose evidence doesn't match lexically. Structural only; it does not verify that the evidence is true. The word-overlap matcher rejects some faithful paraphrases and accepts a wrong figure or a negated claim when most words overlap, so read `invalid` as "send to a person". |
+| `corroborate_evidence` | corroboration-kit | Reports the evidence direction (supports / contradicts / mixed / none) and a graded verdict from distinct sources, not a vote count. With corroboration-kit 0.3 and later, sources count by independent origin (pages of one site count once unless you declare an `origin`). Independence is not verified, and `confirmed` can mean confirmed-contradicted, so read the direction first. |
+| `check_payout_invariance` | payout-invariance-kit | Checks, for the scenarios you supply, whether a ranking engine's output changes with who pays more (`runtime` mode, off unless `HONESTY_MCP_ENABLE_CODE_EXEC=1`) or whether payout identifiers appear in source text you send (`static-imports` mode, always available; it never reads files from disk). Static matching is whole-word: `commission` does not match `commissionRate`, so list full names or, with payout-invariance-kit 0.3 and later, pass `matchIdentifierParts: true`. Not a formal proof for every possible payout configuration. |
 | `check_mutation_invariance` | mutation-invariance-kit | Off unless `HONESTY_MCP_ENABLE_CODE_EXEC=1` (it is not listed otherwise). Checks, for the scenarios you supply, whether a decision/score/ranking function's output depends on a variable it claims not to (protected attribute, geography, price, or anything you name). Not a formal proof for every possible input. |
 | `score_trust_identified` | trust-core (`identified`) | Scores an entity from known, identified contributors (reviewer accounts, raters, inspectors), shrinking thin evidence toward a prior. With no weighted evidence it returns the prior with `insufficient` confidence, not a measured score. |
-| `assess_anonymous_authenticity` | trust-core (`anonymous`) | Scores unattributed/scraped sentiment on how organic it looks, with a heuristic discount for two specific patterns (source concentration, unusually uniform sentiment). It does not detect fabrication or verify independence, and it reports no score (`trustScore: null`) when no signal carries weight. |
-| `check_provenance_claims` | provenance-kit | Flags certainty-implying language ("(verified)", "guaranteed") not backed by an appropriate provenance tier. |
-| `check_claims_registry` | claims-registry-kit | Buckets public-facing claims as current / stale / unverified against their linked evidence and last-verified date. |
+| `assess_anonymous_authenticity` | trust-core (`anonymous`) | Scores unattributed/scraped sentiment on how organic it looks, with a heuristic discount for two specific patterns (source concentration, unusually uniform sentiment). It does not detect fabrication or verify independence, it is not a sentiment ranking (a strongly negative corpus scores lower than a positive one), and it reports no score (`trustScore: null`) when no signal carries weight. |
+| `check_provenance_claims` | provenance-kit | Flags certainty-implying language ("(verified)", "guaranteed") not backed by an appropriate provenance tier. The default phrase list is short (eleven phrases) and phrases match as word prefixes. |
+| `check_claims_registry` | claims-registry-kit | Buckets public-facing claims as current / stale / unverified against their linked evidence and last-verified date. With claims-registry-kit 0.4 and later, a placeholder reference such as `TODO` is unverified and the age limit is exact to the millisecond. |
 | `append_audit_entry` | audit-chain-kit | Appends one entry to a hash-chained, tamper-evident audit log. |
-| `verify_audit_chain` | audit-chain-kit | Independently re-verifies a hash chain from genesis; detects mutation and severed links unconditionally, plain tail deletion with `expectedMinLength`, and truncate-and-re-append (or a full rewrite) only with `anchor` — `expectedMinLength` alone does NOT catch a truncate-and-re-append. |
-| `grade_decision` | advice-ledger-kit | Grades one recommendation-and-decision pair against a before/after observation log — exposure-aligned, with separate floors per window and machine-readable refusal codes. `holding` requires both the exposed bad count to stay under `refuteThreshold` AND its bad rate to not exceed the baseline's (exact comparison, not the rounded `badRate`); either failing is `not-holding` (see the tool description). |
+| `verify_audit_chain` | audit-chain-kit | Independently re-verifies a hash chain from genesis (an empty chain is valid with nothing checked); detects mutation and severed links unconditionally, plain tail deletion with `expectedMinLength`, and truncate-and-re-append (or a full rewrite) only with `anchor`; `expectedMinLength` alone does NOT catch a truncate-and-re-append. |
+| `grade_decision` | advice-ledger-kit | Grades one recommendation-and-decision pair against a before/after observation log, exposure-aligned, with separate floors per window and machine-readable refusal codes. `holding` requires both the exposed bad count to stay under `refuteThreshold` AND its bad rate to be below the baseline's (exact comparison, not the rounded `badRate`; with advice-ledger-kit 0.2 an equal rate also held); either failing is `not-holding`. The refute bar is a fixed count, not a rate (see the tool description). |
 | `compute_divergence` | advice-ledger-kit | Measures how often an engine and a human disagreed, and where a later outcome exists, reports engine-right/human-right as separate, never-blended counts. The optional custom `groupBySource` input is off unless `HONESTY_MCP_ENABLE_CODE_EXEC=1`. |
 
 **2 scaffolding tools** (agent-receipt-kit, cost-governor-kit — these are
@@ -247,6 +247,36 @@ code from reading your filesystem, making network requests, or doing
 anything else this Node process itself can do. The trust model above still
 applies in full: only pass code you wrote or trust, and don't expose this
 server to untrusted, remote, or adversarial input.
+
+## Kit versions
+
+This server runs against two release lines of several wrapped kits. The
+ranges in `package.json` still resolve the older line, so a plain `npm install`
+today gets it. The newer line adds the behavior in the table below. At start-up
+each tool reads the installed kit's version, words its description for that
+version, and refuses an input that the installed kit would silently ignore (for
+example `matchIdentifierParts` with payout-invariance-kit 0.2) instead of
+pretending it worked.
+
+| Kit | Newer line | What it changes through this server |
+|---|---|---|
+| grounding-kit | 0.3.0 | Each unit carries `reasons`, and the result lists `nonClaims`. Verdicts move in both directions (sentence boundaries after abbreviations, closing quotes and dashes; rules and table separators are no longer units). |
+| corroboration-kit | 0.3.0 | Sources count by independent origin. New inputs `origin`, `derivedFrom` and `inferOrigins`; the result gains `groups`. A verdict can only get stricter. |
+| payout-invariance-kit | 0.3.0 | New input `matchIdentifierParts`; identifiers are trimmed and matched in any script; a runtime ranking function that returns nothing is an error. |
+| mutation-invariance-kit | 0.3.0 | An edit made in place to a mutated input is an error; scenarios with the same name are renamed `name (2)`. |
+| trust-core | 0.3.0 | Anonymous scores change (small and single-source corpora score lower); new `config.fullCountWeight`; evidence dated in the future is scored as undated. |
+| provenance-kit | 0.3.0 | Verdicts move in both directions (more negation cues and asserting idioms, look-alike letters). A trailing space in a custom phrase no longer prevents the prefix match. |
+| claims-registry-kit | 0.4.0 | A claim more than `maxAgeDays` x 24 hours old is stale (exact milliseconds); a placeholder `evidenceRef` is unverified. |
+| audit-chain-kit | 0.3.0 | The verify result gains `entriesChecked`. |
+| advice-ledger-kit | 0.3.0 | An exact tie in the bad rate is `not-holding` (it was `holding`). |
+| agent-receipt-kit | 0.3.0 | Scaffold only: the worked example's results gain `snapshot` and `uncoveredFactKeys`. |
+| cost-governor-kit | 0.3.0 | Scaffold only: the guidance mentions the newer admission-control API. |
+
+`test/kitCompat.test.ts` runs the matching branch for whichever line is
+installed, so run the suite once per line. Once the newer kits are on npm, raise
+the ranges in `package.json` to the versions in the table, install, and run
+`npm run verify`; the version checks then always take the newer branch and can
+be removed in a later release.
 
 ## Honest limits
 
