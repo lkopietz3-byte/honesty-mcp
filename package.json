@@ -56,17 +56,17 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
     "zod": "^4.0.0",
-    "grounding-kit": "^0.2.0",
-    "corroboration-kit": "^0.2.0",
-    "payout-invariance-kit": "^0.2.0",
-    "mutation-invariance-kit": "^0.2.0",
-    "trust-core": "^0.2.0",
-    "provenance-kit": "^0.2.0",
-    "claims-registry-kit": "^0.3.0",
-    "audit-chain-kit": "^0.2.0",
-    "advice-ledger-kit": "^0.2.0",
-    "agent-receipt-kit": "^0.2.0",
-    "cost-governor-kit": "^0.2.0"
+    "grounding-kit": "^0.3.0",
+    "corroboration-kit": "^0.3.0",
+    "payout-invariance-kit": "^0.3.0",
+    "mutation-invariance-kit": "^0.3.0",
+    "trust-core": "^0.3.0",
+    "provenance-kit": "^0.3.0",
+    "claims-registry-kit": "^0.4.0",
+    "audit-chain-kit": "^0.3.0",
+    "advice-ledger-kit": "^0.3.0",
+    "agent-receipt-kit": "^0.3.0",
+    "cost-governor-kit": "^0.3.0"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

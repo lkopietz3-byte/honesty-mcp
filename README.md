@@ -250,15 +250,15 @@ server to untrusted, remote, or adversarial input.
 
 ## Kit versions
 
-This server runs against two release lines of several wrapped kits. The
-ranges in `package.json` still resolve the older line, so a plain `npm install`
-today gets it. The newer line adds the behavior in the table below. At start-up
-each tool reads the installed kit's version, words its description for that
-version, and refuses an input that the installed kit would silently ignore (for
-example `matchIdentifierParts` with payout-invariance-kit 0.2) instead of
+This server depends on the newer release line of each wrapped kit (the ranges
+in `package.json`). The table lists what that line changes compared with the
+0.2 line that honesty-mcp 0.2.x used. At start-up each tool reads the installed
+kit's version, words its description for that version, and refuses an input
+that the installed kit would silently ignore (for example `matchIdentifierParts`
+with payout-invariance-kit 0.2, if an override installs it) instead of
 pretending it worked.
 
-| Kit | Newer line | What it changes through this server |
+| Kit | Version | What it changes through this server |
 |---|---|---|
 | grounding-kit | 0.3.0 | Each unit carries `reasons`, and the result lists `nonClaims`. Verdicts move in both directions (sentence boundaries after abbreviations, closing quotes and dashes; rules and table separators are no longer units). |
 | corroboration-kit | 0.3.0 | Sources count by independent origin. New inputs `origin`, `derivedFrom` and `inferOrigins`; the result gains `groups`. A verdict can only get stricter. |
@@ -273,10 +273,8 @@ pretending it worked.
 | cost-governor-kit | 0.3.0 | Scaffold only: the guidance mentions the newer admission-control API. |
 
 `test/kitCompat.test.ts` runs the matching branch for whichever line is
-installed, so run the suite once per line. Once the newer kits are on npm, raise
-the ranges in `package.json` to the versions in the table, install, and run
-`npm run verify`; the version checks then always take the newer branch and can
-be removed in a later release.
+installed. With the current ranges that is always the newer line, so the
+older-line checks can be removed in a later release.
 
 ## Honest limits
 

@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.0] - 2026-10-12
 
-Works with both release lines of the wrapped kits: the 0.2 line it was built on and the newer line with the integrated fixes (see "Kit versions" in the README). No dependency range changes in this version; the ranges to raise once the newer kits are on npm are listed under Dependencies.
+Moves to the newer release line of each wrapped kit, which carries the integrated fixes (see Dependencies below and "Kit versions" in the README). Each tool still reads the installed kit's version, so an older kit installed through an override is described and refused correctly.
 
 ### Security
 
@@ -45,9 +45,9 @@ Works with both release lines of the wrapped kits: the 0.2 line it was built on 
 
 ### Dependencies
 
-Ranges in `package.json` are unchanged (`^0.2.0` for the kits below, `^0.3.0` for claims-registry-kit). This version was run against both lines. Once the newer kits are published, raise these ranges and run `npm run verify` again:
+Kit ranges raised to the newer release lines. This version was also run against the 0.2 line before the change.
 
-| Dependency | Now | Raise to |
+| Dependency | Was | Now |
 |---|---|---|
 | grounding-kit | `^0.2.0` | `^0.3.0` |
 | corroboration-kit | `^0.2.0` | `^0.3.0` |
@@ -61,7 +61,7 @@ Ranges in `package.json` are unchanged (`^0.2.0` for the kits below, `^0.3.0` fo
 | agent-receipt-kit | `^0.2.0` | `^0.3.0` |
 | cost-governor-kit | `^0.2.0` | `^0.3.0` |
 
-Results that change when the newer kits are installed (no verdict is edited in this server; the kits decide): see "Kit versions" in the README.
+Results that change with the newer kits (no verdict is edited in this server; the kits decide): see "Kit versions" in the README.
 
 ## [0.2.1] - 2026-10-07
 
