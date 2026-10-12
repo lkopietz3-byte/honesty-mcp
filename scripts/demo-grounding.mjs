@@ -1,7 +1,6 @@
 // Runs the built honesty-mcp server over stdio with a real MCP client and calls
 // check_grounding on a short answer that cites a source the evidence does not
-// contain. Prints the tool's own output unchanged. Used to produce the demo
-// script in docs/launch-drafts/DEMO-SCRIPT.md.
+// contain. Prints the tool's own output unchanged.
 //
 //   npm run build && node scripts/demo-grounding.mjs
 
