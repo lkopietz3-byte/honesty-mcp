@@ -11,6 +11,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { InvarianceResult } from "mutation-invariance-kit";
+import { isCodeExecEnabled } from "../lib/codeExec.js";
 import { runFunctionJob } from "../lib/runFunctionJob.js";
 import { errorMessage, errorResult, jsonResult } from "../lib/result.js";
 
@@ -30,12 +31,19 @@ const scenarioSchema = z.object({
     .describe("Informational label for which axis this scenario tests. Purely for grouping/filtering in reports."),
 });
 
-/** Registers `check_mutation_invariance` on `server`. */
+/**
+ * Registers `check_mutation_invariance` on `server`. This tool only runs
+ * caller-supplied JavaScript, so while code execution is off (the default,
+ * see lib/codeExec.ts) it is not registered at all.
+ */
 export function registerMutationInvarianceTool(server: McpServer): void {
+  if (!isCodeExecEnabled()) return;
   server.registerTool(
     "check_mutation_invariance",
     {
       title: "Check whether a decision function ignores a given input",
+      // Runs caller-supplied code with this process's privileges: not read-only, and open-world.
+      annotations: { readOnlyHint: false, openWorldHint: true },
       description:
         "Checks -- for the scenarios you supply, not a formal proof for every possible input -- whether a " +
         "decision, score, or ranking function's output changes depending on a variable it claims not to " +
@@ -47,7 +55,10 @@ export function registerMutationInvarianceTool(server: McpServer): void {
         "or any other 'should not depend on X' claim; use check_payout_invariance specifically for the " +
         "payout/commission axis (it also has a static-import-grep mode this tool doesn't need). Pass JS " +
         "source for the function under test and each mutation -- this runs in a worker thread with a bounded " +
-        "timeout, not a sandbox, so only pass code you wrote or trust. A pass covers only the mutations you " +
+        "timeout, not a sandbox, so only pass code you wrote or trust. The function must be deterministic and " +
+        "must not modify its argument (copy before sorting or editing: `[...list].sort()`); an edit made in place " +
+        "to the input is reported as an error, in the newer kit also for the mutated copies. " +
+        "A pass covers only the mutations you " +
         "ran: it says nothing about values you didn't try, fields changed one at a time but never together, " +
         "or a proxy field you never touched (a ZIP code standing in for race, a graduation year for age). " +
         "Re-run this in CI whenever the function changes.",

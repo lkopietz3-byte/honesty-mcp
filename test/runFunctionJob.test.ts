@@ -119,6 +119,11 @@ describe("resolveWorkerTimeoutMs", () => {
   });
 });
 
+// Time allowed for a job that is expected to finish. Starting a worker can take
+// seconds on a busy machine, so this is generous; the timeout-enforcement tests
+// below use their own short limits on purpose.
+const JOB_BUDGET_MS = 30_000;
+
 describe("runFunctionJob: normal jobs", () => {
   it("runs a payout-invariance job and returns the real kit result", async () => {
     const result = await runFunctionJob<{ passed: boolean }>(
@@ -131,7 +136,7 @@ describe("runFunctionJob: normal jobs", () => {
         ],
         mutations: [{ name: "zero out payout", mutateSource: "(input) => input.map((c) => ({ ...c, payout: 0 }))" }],
       },
-      2000,
+      JOB_BUDGET_MS,
     );
     // Deliberately payout-sensitive ranker -> the mutation should flip the order -> fails.
     expect(result.passed).toBe(false);
@@ -145,7 +150,7 @@ describe("runFunctionJob: normal jobs", () => {
         baseInput: { income: 80000, name: "Emily" },
         scenarios: [{ name: "swap name", mutateSource: "(input) => ({ ...input, name: 'Jamal' })" }],
       },
-      2000,
+      JOB_BUDGET_MS,
     );
     // Decision genuinely ignores name -> passes.
     expect(result.passed).toBe(true);
@@ -162,7 +167,7 @@ describe("runFunctionJob: normal jobs", () => {
         floors: { minComparablePairs: 1, minDivergentCount: 1, minDivergentRate: 0 },
         groupBySource: "(pair) => pair.group",
       },
-      2000,
+      JOB_BUDGET_MS,
     );
     expect(result.groups.map((g) => g.group).sort()).toEqual(["x", "y"]);
   });
@@ -178,7 +183,7 @@ describe("runFunctionJob: error propagation", () => {
           baseInput: [1, 2, 3],
           mutations: [{ name: "noop", mutateSource: "(input) => [...input]" }],
         },
-        2000,
+        JOB_BUDGET_MS,
       ),
     ).rejects.toThrow(/rankFn boom/);
   });
@@ -192,7 +197,7 @@ describe("runFunctionJob: error propagation", () => {
           baseInput: {},
           scenarios: [{ name: "s", mutateSource: "(x) => x" }],
         },
-        2000,
+        JOB_BUDGET_MS,
       ),
     ).rejects.toThrow(/fnSource/);
   });
@@ -206,7 +211,7 @@ describe("runFunctionJob: error propagation", () => {
           baseInput: [1, 2, 3],
           mutations: [{ name: "noop", mutateSource: "(input) => [...input]" }],
         },
-        2000,
+        JOB_BUDGET_MS,
       ),
     ).rejects.toThrow(/returned a Promise/);
   });

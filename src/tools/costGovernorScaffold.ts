@@ -82,6 +82,7 @@ export function registerCostGovernorScaffoldTool(server: McpServer): void {
     "scaffold_cost_governor",
     {
       title: "Scaffold the cost-governor-kit spend-safety pattern",
+      annotations: { readOnlyHint: true, openWorldHint: false },
       description:
         "cost-governor-kit is a RUNTIME LIBRARY your app installs and calls at the moment it's about to make " +
         "an AI API call -- it is not something this MCP server can 'check' on demand the way it checks a " +
@@ -141,6 +142,15 @@ export function registerCostGovernorScaffoldTool(server: McpServer): void {
               "adapter). A thrown, rejected, or ambiguous work outcome keeps the hold for reconciliation rather " +
               "than guessing whether the provider was billed; don't release or retry paid work blindly. The " +
               "worked example below demonstrates only the legacy advisory withReserveConfirm API.",
+          newerReleases:
+            "cost-governor-kit 0.3 and later adds multi-scope admission control (admitBeforeCall with an AdmissionStore " +
+            "you write, for per-user and global call caps that count an attempt on every scope or on none), " +
+            "withCapacityReservations (the same hold on 1 to 8 scopes), integer micro-dollar pricing " +
+            "(definePricingTable, priceFor, estimateCostMicros, usageFromAnthropic, usageFromOpenAI) and a " +
+            "single-run commit helper for streams (createCommitOnce). In that release a reservation adapter's " +
+            "expiresAt must be a strict ISO-8601 timestamp with an explicit time zone (Z or +hh:mm), a request " +
+            "`amount` must be a safe integer of at least 1, and checkPreCallCeiling leaves `reason` off an allowed " +
+            "result. See the kit's README for the admission-control recipes.",
           starterSnippet: STARTER_SNIPPET,
         };
 

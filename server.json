@@ -3,7 +3,7 @@
   "name": "io.github.lkopietz3-byte/honesty-mcp",
   "description": "MCP server exposing 11 honesty-SDK kits (grounding, trust, audit, corroboration) as agent tools.",
   "title": "honesty-mcp",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "repository": {
     "url": "https://github.com/lkopietz3-byte/honesty-mcp",
     "source": "github",
@@ -14,11 +14,17 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "honesty-mcp",
-      "version": "0.2.1",
+      "version": "0.3.0",
       "transport": {
         "type": "stdio"
       },
       "environmentVariables": [
+        {
+          "name": "HONESTY_MCP_ENABLE_CODE_EXEC",
+          "description": "Set to exactly 1 to turn on the tools and inputs that run JavaScript sent by the calling agent (check_payout_invariance runtime mode, check_mutation_invariance, compute_divergence's groupBySource). Off by default; any other value leaves them off. Turning it on is not a sandbox: the code runs with this server's filesystem, network and environment access.",
+          "isRequired": false,
+          "isSecret": false
+        },
         {
           "name": "HONESTY_MCP_WORKER_TIMEOUT_MS",
           "description": "Timeout in milliseconds for the worker thread (a time limit, not a sandbox) that runs caller-supplied JS source (check_payout_invariance runtime mode, check_mutation_invariance, compute_divergence's groupBySource). Defaults to 10000.",

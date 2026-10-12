@@ -6,7 +6,7 @@
 
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { validateClaims, type ValidateClaimsOptions } from "provenance-kit";
+import { DEFAULT_CERTAINTY_PHRASES, validateClaims, type ValidateClaimsOptions } from "provenance-kit";
 import { errorMessage, errorResult, jsonResult } from "../lib/result.js";
 
 const tierEnum = z.enum(["verified", "modeled", "editorial"]);
@@ -35,14 +35,20 @@ export function registerProvenanceTool(server: McpServer): void {
     "check_provenance_claims",
     {
       title: "Check claims for unbacked certainty language",
+      annotations: { readOnlyHint: true, openWorldHint: false },
       description:
         "Scans reader-facing claims for certainty-implying language (\"(verified)\", \"independently " +
         "verified\", \"guaranteed\", \"fact-checked\", \"100% accurate\", ...) that isn't backed by an " +
         "appropriate provenance tier, plus tiers that require a sourceRef but don't have one, and claims " +
         "carrying an unrecognized tier. Run it on any copy, marketing page, or AI-drafted content that makes " +
-        "factual-sounding claims before it ships. The default phrase list is a small starter list, not a " +
-        "taxonomy -- it will miss phrases it doesn't know about (e.g. 'clinically proven', 'third-party " +
-        "tested'); extend `certaintyPhrases` for your domain. A negation word ('not', 'without', ...) " +
+        "factual-sounding claims before it ships. The default phrase list is a short starter list (" +
+        `${DEFAULT_CERTAINTY_PHRASES.length} phrases), not a taxonomy -- it will miss phrases it doesn't know about: ` +
+        "compliance attestations ('SOC 2 certified', 'HIPAA-ready'), superlatives ('best-in-class') and " +
+        "'clinically proven' all pass; extend `certaintyPhrases` for your domain. Phrases match as word " +
+        "prefixes (from the start of a word, with no end boundary), so a custom phrase 'proven' also reports " +
+        "'provenance' (but not 'unproven'): list the exact words you mean and review each hit. The check does not read context: a limits " +
+        "statement such as 'Concurrent renames are outside this guarantee' is still reported for 'guarantee'. A " +
+        "negation word ('not', 'without', ...) " +
         "suppresses a match only inside the same clause (a comma, semicolon, period, colon, !, ?, em or en " +
         "dash, or line break ends it; a plain hyphen does not), after the last 'and'/'but', and within `negationWindow` characters. It is a " +
         "window, not a parser, so it can still suppress an overclaim the negation does not govern. An empty " +
@@ -83,9 +89,14 @@ export function registerProvenanceTool(server: McpServer): void {
           negationWindow,
         };
         const offenses = validateClaims(claims, options);
+        const defaultListNote =
+          certaintyPhrases === undefined
+            ? ` The default phrase list has only ${DEFAULT_CERTAINTY_PHRASES.length} phrases and does not cover ` +
+              "compliance attestations or superlatives; pass `certaintyPhrases` to check more wording."
+            : "";
         const summary =
           offenses.length === 0
-            ? `CLEAN: ${claims.length} claim(s) checked; no wording offenses found under the configured rules (this does not verify the claims).`
+            ? `CLEAN: ${claims.length} claim(s) checked; no wording offenses found under the configured rules (this does not verify the claims).${defaultListNote}`
             : `FOUND ${offenses.length} offense(s) across ${claims.length} claim(s).`;
         return jsonResult(summary, offenses);
       } catch (err) {

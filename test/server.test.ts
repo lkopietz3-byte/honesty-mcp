@@ -17,6 +17,7 @@ import { anonymous } from "trust-core";
 import { generateClaimsReport } from "claims-registry-kit";
 import { withReserveConfirm } from "cost-governor-kit";
 import { createServer } from "../src/server.js";
+import { kitAtLeast } from "../src/lib/kitVersion.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 let server: McpServer;
@@ -270,7 +271,7 @@ describe("check_payout_invariance (payout-invariance-kit)", () => {
 
   it.each([
     [{}, ["payout"], "files is empty"],
-    [[], ["payout"], "files is empty"],
+    // A list of paths (including an empty one) is rejected outright now; see test/fileRead.test.ts.
     [{ "a.ts": "x" }, ["payout", "\u200b"], "payoutIdentifiers[1] is blank"],
   ])("static-imports mode reports an empty scope or blank identifier as a tool error, never CLEAN", async (files, payoutIdentifiers, message) => {
     const result = (await client.callTool({
@@ -298,8 +299,10 @@ describe("check_provenance_claims (provenance-kit)", () => {
       arguments: { claims: [{ id: "c1", text: "Our tool summarizes public filings.", tier: "editorial" }] },
     });
     expect(parseJson(result)).toEqual([]);
-    expect(parseSummary(result)).toBe(
-      "CLEAN: 1 claim(s) checked; no wording offenses found under the configured rules (this does not verify the claims).",
+    // With the default phrase list the summary adds a sentence about how short that list is
+    // (see test/kitCompat.test.ts); the verdict sentence itself is unchanged.
+    expect(parseSummary(result)).toMatch(
+      /^CLEAN: 1 claim\(s\) checked; no wording offenses found under the configured rules \(this does not verify the claims\)\./,
     );
     const { tools } = await client.listTools();
     const description = tools.find((tool) => tool.name === "check_provenance_claims")?.description ?? "";
@@ -535,7 +538,10 @@ describe("score_trust_identified / assess_anonymous_authenticity (trust-core)", 
     const expected = anonymous.assessAuthenticity(signals, anonymous.resolveAnonymousConfig(), { now });
     const result = await client.callTool({ name: "assess_anonymous_authenticity", arguments: { signals, now } });
     expect(parseJson(result)).toEqual(expected);
-    expect(parseSummary(result)).toContain("1 distinct source type(s)");
+    // trust-core 0.3 counts "effective" source types (a faint one counts in proportion); 0.2 counted distinct labels.
+    expect(parseSummary(result)).toContain(
+      kitAtLeast("trust-core", "0.3.0") ? "1 effective source type(s)" : "1 distinct source type(s)",
+    );
     expect(parseSummary(result)).toContain("Independence is not verified");
     expect(parseSummary(result)).not.toMatch(/independent source/);
   });

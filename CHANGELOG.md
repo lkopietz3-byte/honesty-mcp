@@ -5,6 +5,64 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-10-12
+
+Moves to the newer release line of each wrapped kit, which carries the integrated fixes (see Dependencies below and "Kit versions" in the README). Each tool still reads the installed kit's version, so an older kit installed through an override is described and refused correctly.
+
+### Security
+
+- **Breaking: code execution is now off by default.** The three paths that run JavaScript the caller sends (`check_payout_invariance` runtime mode, `check_mutation_invariance`, and `compute_divergence`'s `config.groupBySource`) are only available when `HONESTY_MCP_ENABLE_CODE_EXEC` is set to exactly `1`. Any other value, including `true`, `yes` or an empty string, leaves them off. While off: `check_mutation_invariance` is not registered (13 tools instead of 14), `check_payout_invariance` lists `static-imports` mode only, `compute_divergence` does not accept `groupBySource`, the initialize result names the variable, and `runFunctionJob` refuses to start a worker. To keep the old behavior, set the variable in your MCP client's server config. Enabling it still runs the code with the server's filesystem, network and environment access; the worker thread only bounds time and is not a sandbox. The default is the single constant `CODE_EXEC_ENABLED_BY_DEFAULT` in `src/lib/codeExec.ts`.
+- **Breaking: `check_payout_invariance` `static-imports` mode no longer accepts a list of file paths.** The wrapped kit read every path it was given and returned the matching lines, so an agent could read any readable file on the machine. `files` must now be a map of path to file content that the caller sends; a list is rejected with an error. Content you send is scanned exactly as before.
+
+### Added
+
+- Inputs that exist only in the newer kit line, passed to the kit when it supports them and refused with an error naming the version when it does not (an older kit would ignore them silently): `corroborate_evidence` takes `origin` and `derivedFrom` on each signal and `inferOrigins` (corroboration-kit 0.3.0 and later); `check_payout_invariance` `static-imports` mode takes `matchIdentifierParts` (payout-invariance-kit 0.3.0 and later); `assess_anonymous_authenticity` takes `config.fullCountWeight` (trust-core 0.3.0 and later).
+- `src/lib/kitVersion.ts` reads the installed version of a wrapped kit, and `test/kitCompat.test.ts` checks the version-dependent behavior for whichever line is installed.
+- The stdio probe now calls every listed tool once with a small valid input in both sessions, so a wrapped kit that throws on first use fails `npm run verify`.
+- `readOnlyHint: true` and `openWorldHint: false` tool annotations on the tools that do no I/O. These are hints for clients, not enforcement.
+- `test/drift.test.ts` fails when the versions in `package.json`, `src/server.ts` and `server.json` disagree, when the CHANGELOG has no entry for the current version, or when the README's tool tables and totals differ from the tools the server registers.
+- The stdio probe now checks both the default (code execution off) and enabled sessions, and that file text is never returned for a path list.
+
+### Changed
+
+- Tool descriptions say what the installed kit does, and stop overstating:
+  - `check_grounding`: an `invalid` unit is a lead for human review, not a hard stop. The description now says the word-overlap matcher rejects some faithful paraphrases and accepts a wrong figure or a negated claim when most words overlap, and names `reasons` and `nonClaims` when grounding-kit reports them.
+  - `check_payout_invariance`: `static-imports` matching is whole-word, so `commission` is not matched inside `commissionRate`, `affiliateUrl` or `payoutPerClick`. The description and the `payoutIdentifiers` input say so, and name `matchIdentifierParts` when the kit has it. The ranking function must be deterministic.
+  - `check_provenance_claims`: phrases match as word prefixes (`proven` also reports `provenance`), the default list is short (eleven phrases) and misses compliance attestations and superlatives, and a limits sentence such as "outside this guarantee" is still reported. A CLEAN result from the default list now says how short the list is.
+  - `corroborate_evidence`: says which spellings of a source merge. With corroboration-kit 0.3.0 and later, sources count by independent origin and the summary notes when signals were counted together.
+  - `grade_decision`: the tie rule follows the installed advice-ledger-kit (an equal bad rate is `not-holding` from 0.3.0), and the description says the refute bar is a fixed count, not a rate.
+  - `check_claims_registry`: with claims-registry-kit 0.4.0 and later, names the placeholder references that count as unverified and the exact-millisecond age rule.
+  - `assess_anonymous_authenticity`: says the score is not a sentiment ranking and, with trust-core 0.3.0 and later, how source types are counted. The summary says "effective" source types there.
+  - `score_trust_identified`: lists the example configuration's tier, source and proof keys.
+  - `check_mutation_invariance`: the function must not modify its argument.
+  - `verify_audit_chain`: an empty chain is valid with nothing checked.
+  - `scaffold_agent_receipts` and `scaffold_cost_governor`: mention the newer kit APIs.
+- `verify_audit_chain` on an empty chain now says "VALID (empty chain): nothing was checked" instead of "all 0 entries verified". The result is unchanged.
+
+### Fixed
+
+- Test timing: the export-context CLI test and the worker-job tests now have fixed, generous time budgets, so they no longer fail on a busy machine. No assertion changed.
+
+### Dependencies
+
+Kit ranges raised to the newer release lines. This version was also run against the 0.2 line before the change.
+
+| Dependency | Was | Now |
+|---|---|---|
+| grounding-kit | `^0.2.0` | `^0.3.0` |
+| corroboration-kit | `^0.2.0` | `^0.3.0` |
+| payout-invariance-kit | `^0.2.0` | `^0.3.0` |
+| mutation-invariance-kit | `^0.2.0` | `^0.3.0` |
+| trust-core | `^0.2.0` | `^0.3.0` |
+| provenance-kit | `^0.2.0` | `^0.3.0` |
+| claims-registry-kit | `^0.3.0` | `^0.4.0` |
+| audit-chain-kit | `^0.2.0` | `^0.3.0` |
+| advice-ledger-kit | `^0.2.0` | `^0.3.0` |
+| agent-receipt-kit | `^0.2.0` | `^0.3.0` |
+| cost-governor-kit | `^0.2.0` | `^0.3.0` |
+
+Results that change with the newer kits (no verdict is edited in this server; the kits decide): see "Kit versions" in the README.
+
 ## [0.2.1] - 2026-10-07
 
 ### Security

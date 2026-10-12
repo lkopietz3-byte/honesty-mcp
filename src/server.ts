@@ -3,6 +3,7 @@
 // going through the stdio transport.
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { CODE_EXEC_ENV_VAR, CODE_EXEC_ENABLING_VALUE, isCodeExecEnabled } from "./lib/codeExec.js";
 import { registerGroundingTool } from "./tools/grounding.js";
 import { registerCorroborationTool } from "./tools/corroboration.js";
 import { registerPayoutInvarianceTool } from "./tools/payoutInvariance.js";
@@ -19,12 +20,33 @@ import { registerAdviceLedgerGradeTool, registerAdviceLedgerDivergenceTool } fro
 /** The name this server reports to MCP clients during the initialize handshake. */
 export const SERVER_NAME = "honesty-mcp";
 /** The version this server reports to MCP clients. Keep in sync with package.json's `version`. */
-export const SERVER_VERSION = "0.2.1";
+export const SERVER_VERSION = "0.3.0";
 
-/** Builds a fresh McpServer with every honesty-kit tool registered. */
+/**
+ * Text sent to MCP clients in the initialize result while code execution is
+ * off, so an agent (and the person reading its transcript) can see why some
+ * tools or inputs are missing and what the operator would have to change.
+ */
+export const CODE_EXEC_OFF_INSTRUCTIONS =
+  "Code execution is off. check_mutation_invariance is not available, check_payout_invariance offers " +
+  "static-imports mode only, and compute_divergence does not accept config.groupBySource, because those paths " +
+  `run caller-supplied JavaScript. The server operator can turn them on by setting ${CODE_EXEC_ENV_VAR}=` +
+  `${CODE_EXEC_ENABLING_VALUE} in the server's environment. Turning it on runs that code with this process's ` +
+  "filesystem, network and environment access; the worker thread only bounds time and is not a sandbox.";
+
+/**
+ * Builds a fresh McpServer with every honesty-kit tool registered. Which
+ * tools and inputs are registered depends on whether code execution is
+ * enabled (see lib/codeExec.ts), read when this function runs.
+ */
 export function createServer(): McpServer {
-  const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
+  const server = new McpServer(
+    { name: SERVER_NAME, version: SERVER_VERSION },
+    isCodeExecEnabled() ? undefined : { instructions: CODE_EXEC_OFF_INSTRUCTIONS },
+  );
 
+  // 14 tools when code execution is enabled, 13 when it is off (the default;
+  // check_mutation_invariance is then not registered).
   // 9 content-checking kits, 12 tools (one tool each, except payout-invariance,
   // audit-chain, and advice-ledger which each split into two genuinely
   // distinct operations -- see README.md for the mapping).

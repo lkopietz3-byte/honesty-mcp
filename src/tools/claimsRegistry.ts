@@ -11,6 +11,38 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { formatClaimsReportAsText, generateClaimsReport, type Claim } from "claims-registry-kit";
 import { errorMessage, errorResult, jsonResult } from "../lib/result.js";
 import { parseIsoInstant } from "../lib/isoInstant.js";
+import { kitAtLeast } from "../lib/kitVersion.js";
+
+/** claims-registry-kit 0.4.0: exact-millisecond age rule and placeholder evidence references. */
+const REGISTRY_RULES_MIN_VERSION = "0.4.0";
+
+function registryDescription(): string {
+  const newRules = kitAtLeast("claims-registry-kit", REGISTRY_RULES_MIN_VERSION);
+  const unverifiedRule = newRules
+    ? "'unverified' (no evidenceRef, or a placeholder that shows no evidence: exactly TODO, TBD, N/A, none, '-' " +
+      "or 'see above', ignoring case -- this always wins over staleness, since a fresh date next to an empty or " +
+      "placeholder reference proves nothing)"
+    : "'unverified' (no evidenceRef at all -- this always wins over staleness, since a fresh date next to " +
+      "an empty reference proves nothing)";
+  const staleRule = newRules
+    ? "'stale' (evidence present but `verifiedAt` is more than `maxAgeDays` x 24 hours before `now`, compared in " +
+      "exact milliseconds, or unparseable; `ageDays` is whole days rounded down and for display only, so a claim " +
+      "can show 90d and still be stale at `maxAgeDays: 90`)"
+    : "'stale' (evidence present but `verifiedAt` is older than `maxAgeDays`, or unparseable)";
+  return (
+    "Keeps public-facing product claims honest over time by checking each one against its own claimed " +
+    "evidence -- the SOC2-control-evidence pattern applied to marketing/product copy instead of " +
+    "compliance controls. Buckets every claim into 'current' (evidence present, review within policy), " +
+    `${staleRule}, or ${unverifiedRule}. ` +
+    "Use this as a periodic 'Monday-morning' review or a CI gate on " +
+    "a claims registry, to catch marketing copy that drifted out of sync with what the product actually " +
+    "does after a refactor. Note: this only checks that a reference EXISTS and is fresh, not that the " +
+    "thing it points to still supports the claim's text; no tool in this server verifies that (check_grounding " +
+    "checks citation structure in a document, not whether evidence supports a claim). Claim ids that show " +
+    "nothing (empty, whitespace or invisible characters only) are a tool error. The text summary escapes " +
+    "control and bidi characters as \\uXXXX; the JSON report keeps the raw strings."
+  );
+}
 
 const claimSchema = z.object({
   id: z.string().describe("Stable identifier for this claim, unique within your registry."),
@@ -36,19 +68,8 @@ export function registerClaimsRegistryTool(server: McpServer): void {
     "check_claims_registry",
     {
       title: "Check public claims for stale or missing evidence",
-      description:
-        "Keeps public-facing product claims honest over time by checking each one against its own claimed " +
-        "evidence -- the SOC2-control-evidence pattern applied to marketing/product copy instead of " +
-        "compliance controls. Buckets every claim into 'current' (evidence present, review within policy), " +
-        "'stale' (evidence present but `verifiedAt` is older than `maxAgeDays`, or unparseable), or " +
-        "'unverified' (no evidenceRef at all -- this always wins over staleness, since a fresh date next to " +
-        "an empty reference proves nothing). Use this as a periodic 'Monday-morning' review or a CI gate on " +
-        "a claims registry, to catch marketing copy that drifted out of sync with what the product actually " +
-        "does after a refactor. Note: this only checks that a reference EXISTS and is fresh, not that the " +
-        "thing it points to still supports the claim's text; no tool in this server verifies that (check_grounding " +
-        "checks citation structure in a document, not whether evidence supports a claim). Claim ids that show " +
-        "nothing (empty, whitespace or invisible characters only) are a tool error. The text summary escapes " +
-        "control and bidi characters as \\uXXXX; the JSON report keeps the raw strings.",
+      annotations: { readOnlyHint: true, openWorldHint: false },
+      description: registryDescription(),
       inputSchema: {
         claims: z.array(claimSchema).min(1).describe("The claims to evaluate."),
         maxAgeDays: z

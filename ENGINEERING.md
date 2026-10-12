@@ -13,15 +13,32 @@
    `worker_threads` Worker and `terminate()`s it if it doesn't finish within
    `HONESTY_MCP_WORKER_TIMEOUT_MS` (default 10000ms). This bounds time only
    — it is not a sandbox and does not restrict filesystem/network/env access.
+   These paths are off unless `HONESTY_MCP_ENABLE_CODE_EXEC` is exactly `1`
+   (`src/lib/codeExec.ts`; the default is the constant
+   `CODE_EXEC_ENABLED_BY_DEFAULT`). The same function decides what gets
+   registered, and `runFunctionJob` calls `assertCodeExecEnabled()` before it
+   spawns anything, so it is the single fail-closed choke point.
+   `check_payout_invariance` `static-imports` mode takes file contents, never
+   paths: a list of paths is rejected.
 3. Every tool handler calls the wrapped kit's real, unmodified export. This
    server does not reimplement grounding, invariance, trust scoring,
    provenance validation, claims staleness, audit-chain hashing, or
    decision grading — it only translates between MCP/Zod and the kit's own
    types.
-4. `SERVER_VERSION` (`src/server.ts`) and `package.json`'s `version` are two
-   separate values with no automated sync — bump both by hand on release.
+4. `SERVER_VERSION` (`src/server.ts`), `package.json`'s `version` and both
+   versions in `server.json` are separate values that you bump by hand on
+   release. `test/drift.test.ts` fails if they disagree, and also checks that
+   the README's tool tables and tool totals match what the server registers.
 5. Zero runtime dependencies beyond `@modelcontextprotocol/sdk`, `zod`, and
    the eleven published sibling kits (semver ranges, not `file:` links).
+6. Where a wrapped kit has two release lines (see "Kit versions" in the README),
+   an input or description that exists only in the newer line is gated on the
+   installed version (`src/lib/kitVersion.ts`). A new input is passed to the kit
+   only when the kit supports it and is refused with an error naming the
+   version otherwise, because an older kit would ignore it silently and the
+   result would look as if it had been applied. `test/kitCompat.test.ts` takes
+   the matching branch for the installed line; run the suite once per line
+   before a release.
 
 ## Setup and verification
 

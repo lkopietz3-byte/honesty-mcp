@@ -7,6 +7,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { identified } from "trust-core";
 import { errorMessage, errorResult, jsonResult } from "../lib/result.js";
+import { kitAtLeast } from "../lib/kitVersion.js";
 
 const signalSchema = z.object({
   id: z.string().describe("Identifier for this signal, for reference in the output."),
@@ -55,23 +56,37 @@ const configSchema = z
       "-- omit to use the example config as-is.",
   );
 
+function identifiedDescription(): string {
+  const futureNote = kitAtLeast("trust-core", "0.3.0")
+    ? "Evidence dated more than one day after `now` is scored as undated (its recency uses `missingDateAgeDays`). "
+    : "";
+  return (
+    "Scores one entity (or one dimension of one entity -- quality, reliability, communication, ...) from " +
+    "signals contributed by KNOWN, identified sources: reviewer accounts, raters, inspectors, verified " +
+    "buyers. Weighs each signal by tier x source x proof-strength x reputation x recency decay, sums to " +
+    "an effective (credibility-weighted) sample size, and shrinks the result toward a domain baseline " +
+    "('prior') by a configurable dial -- thin evidence stays close to the prior, deep evidence overrides " +
+    "it. Signals whose combined weight is 0 contribute nothing; when no signal carries weight, confidence is " +
+    "'insufficient' and the score equals the prior. " +
+    futureNote +
+    "Every signal's `tier`, `source` and `proof` must be a key of the matching weight table, or the call is an " +
+    "error that names the missing key. The built-in example configuration accepts tier new | standard | " +
+    "verified | expert, source imported | referred | direct, and proof none | self_attested | verified | " +
+    "documented; override them with `config.tierWeights`, `config.sourceWeights` and `config.proofWeights`. " +
+    "Inputs that push a derived value past a finite number (for example an enormous dial or weight) are a " +
+    "tool error. Use this for trust/reputation scores backed by attributable evidence. For unattributed/scraped " +
+    "signals with no identity behind them, use assess_anonymous_authenticity instead."
+  );
+}
+
 /** Registers `score_trust_identified` on `server`. */
 export function registerTrustIdentifiedTool(server: McpServer): void {
   server.registerTool(
     "score_trust_identified",
     {
       title: "Score an entity from known contributors",
-      description:
-        "Scores one entity (or one dimension of one entity -- quality, reliability, communication, ...) from " +
-        "signals contributed by KNOWN, identified sources: reviewer accounts, raters, inspectors, verified " +
-        "buyers. Weighs each signal by tier x source x proof-strength x reputation x recency decay, sums to " +
-        "an effective (credibility-weighted) sample size, and shrinks the result toward a domain baseline " +
-        "('prior') by a configurable dial -- thin evidence stays close to the prior, deep evidence overrides " +
-        "it. Signals whose combined weight is 0 contribute nothing; when no signal carries weight, confidence is " +
-        "'insufficient' and the score equals the prior. Inputs that push a derived value past a finite number " +
-        "(for example an enormous dial or weight) are a tool error. Use this for trust/reputation scores backed by " +
-        "attributable evidence. For unattributed/scraped " +
-        "signals with no identity behind them, use assess_anonymous_authenticity instead.",
+      annotations: { readOnlyHint: true, openWorldHint: false },
+      description: identifiedDescription(),
       inputSchema: {
         signals: z.array(signalSchema).describe("The identified signals to score from. May be empty (yields the prior, with insufficient confidence)."),
         config: configSchema,
