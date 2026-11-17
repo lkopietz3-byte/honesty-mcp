@@ -55,27 +55,27 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
-    "zod": "^4.0.0",
-    "grounding-kit": "^0.3.0",
-    "corroboration-kit": "^0.3.0",
-    "payout-invariance-kit": "^0.3.0",
-    "mutation-invariance-kit": "^0.3.0",
-    "trust-core": "^0.3.0",
-    "provenance-kit": "^0.3.0",
-    "claims-registry-kit": "^0.4.0",
-    "audit-chain-kit": "^0.3.0",
     "advice-ledger-kit": "^0.3.0",
     "agent-receipt-kit": "^0.3.0",
-    "cost-governor-kit": "^0.3.0"
+    "audit-chain-kit": "^0.3.0",
+    "claims-registry-kit": "^0.4.0",
+    "corroboration-kit": "^0.3.0",
+    "cost-governor-kit": "^0.3.0",
+    "grounding-kit": "^0.3.0",
+    "mutation-invariance-kit": "^0.3.0",
+    "payout-invariance-kit": "^0.3.0",
+    "provenance-kit": "^0.3.0",
+    "trust-core": "^0.3.0",
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@types/node": "^22.0.0",
-    "eslint": "10.9.1",
+    "eslint": "10.15.0",
     "globals": "17.12.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "8.70.0",
-    "vite": "7.3.6",
-    "vitest": "4.1.11"
+    "typescript-eslint": "8.73.0",
+    "vite": "7.3.8",
+    "vitest": "4.1.12"
   }
 }
