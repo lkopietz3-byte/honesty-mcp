@@ -28,9 +28,14 @@ sources. Each sentence comes back as grounded, placeholder, ungrounded or
 invalid (a citation whose source is missing from the evidence). It checks
 structure only: it does not decide whether a source is true.
 
-Thirteen tools are listed by default. The three paths that run JavaScript the
-agent sends are off unless you set `HONESTY_MCP_ENABLE_CODE_EXEC=1`; read
+Thirteen tools are listed by default, covering the eleven kits named below. The
+three paths that run JavaScript the agent sends are off unless you set
+`HONESTY_MCP_ENABLE_CODE_EXEC=1`; with that set, one more tool is listed, for a
+total of fourteen. Read
 [A note on the code-execution tools](#a-note-on-the-code-execution-tools) first.
+
+The newer accuracy-claim-kit, number-trace-kit and parity-kit are published on
+npm but have no tools here yet.
 
 ## Install
 
