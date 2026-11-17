@@ -105,10 +105,10 @@ build), but it's why that rename shows up in this server's own git history.
 the `prepublishOnly` script, so a broken build cannot reach the registry by accident. To
 release: bump `version` in `package.json` AND `SERVER_VERSION` in `src/server.ts` (see
 invariant 4), add a dated `CHANGELOG.md` entry, commit, and push a `vX.Y.Z` tag that matches
-the new version — `.github/workflows/release.yml` then installs, verifies, and publishes it.
-(You can also run `npm publish` locally; `prepublishOnly` still guards it.) If also updating
-the MCP registry listing, bump `server.json`'s `version` to match and re-run
-`mcp-publisher publish` (see README, "Listing in the MCP registry").
+the new version — `.github/workflows/release.yml` then installs, verifies, publishes it to npm,
+and lists it in the MCP registry. Bump `server.json`'s `version` (and its `packages[0].version`)
+to match first; the workflow fails if they differ. (You can also run `npm publish` locally;
+`prepublishOnly` still guards it. To list by hand, see README, "Listing in the MCP registry".)
 
 npm's unpublish policy is deliberately narrow. Within 72 hours of publishing, a version can be
 unpublished only if no other published package depends on it. After 72 hours, unpublishing also

@@ -104,13 +104,16 @@ has no port to browse to.
 
 ### Listing in the MCP registry
 
-`honesty-mcp` also ships a `server.json` (validated against the official
-schema) so it can be listed on the
+`honesty-mcp` ships a `server.json` (validated against the official
+schema) so it is listed on the
 [official MCP registry](https://github.com/modelcontextprotocol/registry),
-under the name `io.github.lkopietz3-byte/honesty-mcp`. Listing is a manual,
-one-time step the maintainer runs after this package is on npm — it is
-**not** run as part of this repo's CI or `npm publish`. Exact commands,
-from the registry's own docs
+under the name `io.github.lkopietz3-byte/honesty-mcp`. The release workflow
+(`.github/workflows/release.yml`, which runs on a `v*` tag) does the listing
+after it publishes to npm: it validates `server.json`, then runs
+`mcp-publisher login github-oidc` and `mcp-publisher publish`. A re-run
+skips any step whose version is already published. You only need the manual
+commands below to publish by hand, for example to recover from a failed
+registry step. They come from the registry's own docs
 ([publishing guide](https://github.com/modelcontextprotocol/registry/blob/main/docs/modelcontextprotocol-io/quickstart.mdx),
 [CLI reference](https://github.com/modelcontextprotocol/registry/blob/main/docs/reference/cli/commands.md)):
 
