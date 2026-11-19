@@ -2,7 +2,7 @@
 
 **[Try the kits in your browser →](https://lkopietz3-byte.github.io/honesty-kits/)** · Part of [honesty kits](https://github.com/lkopietz3-byte/honesty-kits), a family of small checks for the claims an AI product makes.
 
-An MCP (Model Context Protocol) server that exposes eleven already-built,
+An MCP (Model Context Protocol) server that exposes fifteen already-built,
 zero-runtime-dependency "honesty SDK" TypeScript libraries as tools any
 MCP-compatible coding agent (Claude Code, Claude Desktop, or any other MCP
 client) can call while building or auditing a product — grounded-citation
@@ -10,7 +10,8 @@ checking, evidence corroboration grading, payout/mutation-invariance checks
 (scenario-tested, not a formal proof for every possible input), trust/
 authenticity scoring, provenance-claim validation, a claims registry, a
 tamper-evident audit chain, and recommendation/decision grading plus
-engine-vs-human divergence, plus scaffolding for two runtime-library kits
+engine-vs-human divergence, numeric tracing, accuracy-claim assessment, data
+parity and review-date freshness, plus scaffolding for two runtime-library kits
 that don't fit the "check this content" shape.
 
 This server is thin by design: every tool is a Zod input schema plus a
@@ -28,21 +29,20 @@ sources. Each sentence comes back as grounded, placeholder, ungrounded or
 invalid (a citation whose source is missing from the evidence). It checks
 structure only: it does not decide whether a source is true.
 
-Thirteen tools are listed by default, covering ten of the eleven kits named
-below. The three paths that run JavaScript the agent sends are off unless you
-set `HONESTY_MCP_ENABLE_CODE_EXEC=1`; with that set, one more tool is listed,
-for mutation-invariance-kit, for a total of fourteen tools across all eleven. Read
+With code execution off, clients see **17 tools across 14 kits**. With it on,
+clients see **18 tools across 15 kits**. The three paths that run JavaScript
+the agent sends are off unless you set `HONESTY_MCP_ENABLE_CODE_EXEC=1`. That
+setting adds the mutation-invariance-kit tool to the list. Read
 [A note on the code-execution tools](#a-note-on-the-code-execution-tools) first.
 
-The newer accuracy-claim-kit, number-trace-kit and parity-kit are published on
-npm but have no tools here yet.
+The 0.4.0 tool set adds number-trace-kit, accuracy-claim-kit, parity-kit and
+freshness-kit. All four tools are available with code execution off.
 
 ## Install
 
-`honesty-mcp` is published on npm and wraps its eleven sibling "honesty SDK"
-kits as ordinary registry dependencies (semver ranges, not local `file:`
-paths) — `npm install` (or a plain `npx`) resolves everything from the
-public registry, with nothing else to check out first.
+`honesty-mcp` is published on npm. The 0.4.0 package uses registry dependencies
+for all fifteen sibling "honesty SDK" kits. `npm install` (or a plain `npx`)
+resolves everything from the public registry.
 
 The fastest way to run it, with no install step at all:
 
@@ -142,8 +142,7 @@ publisher (see
 
 ## Tools
 
-**9 content-checking kits, 12 tools** (kits 1–9: hand one of these real
-content or data, get back a structured verdict):
+**13 content-checking kits, 16 tools** with code execution enabled.
 
 | Tool | Wraps | One-line purpose |
 |---|---|---|
@@ -159,6 +158,10 @@ content or data, get back a structured verdict):
 | `verify_audit_chain` | audit-chain-kit | Independently re-verifies a hash chain from genesis (an empty chain is valid with nothing checked); detects mutation and severed links unconditionally, plain tail deletion with `expectedMinLength`, and truncate-and-re-append (or a full rewrite) only with `anchor`; `expectedMinLength` alone does NOT catch a truncate-and-re-append. |
 | `grade_decision` | advice-ledger-kit | Grades one recommendation-and-decision pair against a before/after observation log, exposure-aligned, with separate floors per window and machine-readable refusal codes. `holding` requires both the exposed bad count to stay under `refuteThreshold` AND its bad rate to be below the baseline's (exact comparison, not the rounded `badRate`; with advice-ledger-kit 0.2 an equal rate also held); either failing is `not-holding`. The refute bar is a fixed count, not a rate (see the tool description). |
 | `compute_divergence` | advice-ledger-kit | Measures how often an engine and a human disagreed, and where a later outcome exists, reports engine-right/human-right as separate, never-blended counts. The optional custom `groupBySource` input is off unless `HONESTY_MCP_ENABLE_CODE_EXEC=1`. |
+| `trace_numbers` | number-trace-kit | Traces numeric values in an answer to supplied evidence, including recognized rounding and optional derivations. Worded numbers, truth and sentence context are outside the check. |
+| `assess_accuracy_claim` | accuracy-claim-kit | Assesses a claimed figure against supplied counts and declared labeling and sampling. Returns a verdict and an evidence-scoped suggested statement. |
+| `check_parity` | parity-kit | Compares a mirror to canonical records or audits review stamps across two snapshots. Flags visible differences and stamp-only moves. |
+| `check_freshness` | freshness-kit | Finds aging or stale review dates using two thresholds in days and a required as-of date. |
 
 **2 scaffolding tools** (agent-receipt-kit, cost-governor-kit — these are
 runtime libraries a project *installs and imports into its own running
@@ -171,16 +174,7 @@ in `src/tools/agentReceiptScaffold.ts` / `costGovernorScaffold.ts` for why a
 | `scaffold_agent_receipts` | agent-receipt-kit | Explains the issue-a-packet / verify-the-claim authorization pattern for AI agents, with an install step, a starter snippet, and (optionally) a live accepted/rejected worked example run against the real kit. |
 | `scaffold_cost_governor` | cost-governor-kit | Explains the estimated pre-call spend check + cache-aware pricing math (default 0.1x cache-read rate, overridable per model via `cacheReadPerMillion`) + advisory (not concurrency-safe) check-then-commit usage-counting pattern (a commit failure after a successful call returns `commitError` instead of discarding the result), with an install step, a starter snippet, and (optionally) a live worked example. |
 
-That's 9 kits, 12 content-checking tool slots (payout-invariance-kit,
-audit-chain-kit, and advice-ledger-kit each got 2 tools instead of 1, since
-each bundles two genuinely distinct operations — runtime check vs. static
-grep; append vs. verify; grading one decision vs. measuring divergence
-across a whole population — that read better as separate, single-purpose
-MCP tools than as one tool with a mode switch) plus 2 scaffolding tools =
-**14 tools total**.
-
-That is 14 tools when code execution is enabled. With it off (the default),
-`check_mutation_invariance` is not listed, so a client sees 13.
+There are **18 tools total** with code execution enabled.
 
 ### A note on the code-execution tools
 
@@ -258,13 +252,11 @@ server to untrusted, remote, or adversarial input.
 
 ## Kit versions
 
-This server depends on the newer release line of each wrapped kit (the ranges
-in `package.json`). The table lists what that line changes compared with the
-0.2 line that honesty-mcp 0.2.x used. At start-up each tool reads the installed
-kit's version, words its description for that version, and refuses an input
-that the installed kit would silently ignore (for example `matchIdentifierParts`
-with payout-invariance-kit 0.2, if an override installs it) instead of
-pretending it worked.
+The kit version ranges are in `package.json`. For the kits previously
+wrapped by honesty-mcp 0.2.x, the table notes what the newer lines changed.
+Tools with version-dependent behavior describe the installed kit and reject
+inputs that an older override would silently ignore, such as
+`matchIdentifierParts` with payout-invariance-kit 0.2.
 
 | Kit | Version | What it changes through this server |
 |---|---|---|
@@ -279,6 +271,10 @@ pretending it worked.
 | advice-ledger-kit | 0.3.0 | An exact tie in the bad rate is `not-holding` (it was `holding`). |
 | agent-receipt-kit | 0.3.0 | Scaffold only: the worked example's results gain `snapshot` and `uncoveredFactKeys`. |
 | cost-governor-kit | 0.3.0 | Scaffold only: the guidance mentions the newer admission-control API. |
+| number-trace-kit | 0.1.0 | First wrapped in honesty-mcp 0.4.0. |
+| accuracy-claim-kit | 0.1.1 | First wrapped in honesty-mcp 0.4.0. |
+| parity-kit | 0.1.0 | First wrapped in honesty-mcp 0.4.0. |
+| freshness-kit | 0.3.0 | First wrapped in honesty-mcp 0.4.0. |
 
 `test/kitCompat.test.ts` runs the matching branch for whichever line is
 installed. With the current ranges that is always the newer line, so the
@@ -297,9 +293,9 @@ older-line checks can be removed in a later release.
   `compute_divergence`'s worker-thread timeout bounds time only, not
   behavior** — see "A note on the code-execution tools" above. It is not a
   sandbox, and these paths are off unless `HONESTY_MCP_ENABLE_CODE_EXEC=1`.
-- **`SERVER_VERSION` (`src/server.ts`) and `package.json`'s `version` are
-  still bumped by hand.** `test/drift.test.ts` now fails if they, or the two
-  versions in `server.json`, disagree, but nothing bumps them for you.
+- **Version fields are bumped by hand.** `test/drift.test.ts` checks that
+  `SERVER_VERSION` and the versions in `package.json`, `package-lock.json`
+  and `server.json` agree.
 
 ## Development
 
@@ -309,7 +305,7 @@ build from source:
 ```bash
 git clone https://github.com/lkopietz3-byte/honesty-mcp.git
 cd honesty-mcp
-npm install          # resolves the 11 wrapped kits from the npm registry
+npm install          # resolves the 15 wrapped kits from the npm registry
 npm run build         # compiles src/ -> dist/
 npm start              # runs dist/index.js on stdio
 ```
@@ -326,7 +322,7 @@ npm run smoke        # npm run build first, then node dist/smoke.js --
                       # a standalone script that does the same real
                       # client/server handshake, lists all tools, and
                       # calls one end-to-end
-npm run verify       # lint + typecheck + test + build + smoke, in order
+npm run verify       # lint + typecheck + test + build + smoke + stdio + installed consumer
 npm run audit:dependencies   # npm audit --package-lock-only --include=dev
                               # --ignore-scripts --audit-level=low
 ```
@@ -355,6 +351,10 @@ src/
     claimsRegistry.ts
     auditChain.ts               (append_audit_entry + verify_audit_chain)
     adviceLedger.ts              (grade_decision + compute_divergence)
+    numberTrace.ts
+    accuracyClaim.ts
+    parity.ts
+    freshness.ts
     agentReceiptScaffold.ts
     costGovernorScaffold.ts
 test/

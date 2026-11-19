@@ -1,11 +1,11 @@
 // Release-drift guards. Each test fails when two places that must agree have
-// drifted apart: the version in four places, the tool list in the README
+// drifted apart: the package, lockfile and registry versions, the tool list in the README
 // versus what the server really registers, and the CHANGELOG entry for the
 // current version. They read the files at the repository root, so they check
 // what would actually be published.
 
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { CODE_EXEC_ENV_VAR } from "../src/lib/codeExec.js";
@@ -27,46 +27,44 @@ interface ServerJson {
   version: string;
   packages: { identifier: string; version: string; environmentVariables?: { name: string }[] }[];
 }
+interface PackageLock {
+  version: string;
+  packages: Record<string, Pick<PackageJson, "version" | "dependencies">>;
+}
 
 const pkg = JSON.parse(readRepoFile("package.json")) as PackageJson;
+const lock = JSON.parse(readRepoFile("package-lock.json")) as PackageLock;
 const serverJson = JSON.parse(readRepoFile("server.json")) as ServerJson;
 const readme = readRepoFile("README.md");
 
-async function registeredToolNames(): Promise<string[]> {
+async function registeredToolNames(codeExec = true): Promise<string[]> {
+  vi.stubEnv(CODE_EXEC_ENV_VAR, codeExec ? "1" : undefined);
   const server = createServer();
   const client = new Client({ name: "drift-test-client", version: "0.0.0" });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
   try {
+    await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
     const { tools } = await client.listTools();
     return tools.map((tool) => tool.name).sort();
   } finally {
+    vi.unstubAllEnvs();
     await client.close();
     await server.close();
   }
 }
 
-/** Tool names in the README's two tool tables: rows that start with a backticked name and a `Wraps` cell. */
-function readmeToolNames(): string[] {
-  const names: string[] = [];
-  for (const line of readme.split("\n")) {
-    const match = /^\| `([a-z][a-z0-9_]*)` \| /.exec(line);
-    if (match?.[1]) names.push(match[1]);
-  }
-  return names.sort();
+/** Tool and kit names from the README's tool tables. */
+function readmeTools(): [string, string][] {
+  return [...readme.matchAll(/^\| `([a-z][a-z0-9_]*)` \| ([a-z][a-z0-9-]*) (?:\(`\w+`\) )?\| /gm)]
+    .map(([, name, kit]) => [name!, kit!]);
 }
 
 describe("version drift", () => {
-  it("package.json, SERVER_VERSION and both server.json versions are the same", () => {
-    expect({
-      serverVersion: SERVER_VERSION,
-      serverJson: serverJson.version,
-      serverJsonPackage: serverJson.packages[0]?.version,
-    }).toEqual({
-      serverVersion: pkg.version,
-      serverJson: pkg.version,
-      serverJsonPackage: pkg.version,
-    });
+  it("the package, lockfile, server and registry versions are the same", () => {
+    expect([
+      SERVER_VERSION, lock.version, lock.packages[""]?.version, serverJson.version, serverJson.packages[0]?.version,
+    ]).toEqual(Array<string>(5).fill(pkg.version));
+    expect(lock.packages[""]?.dependencies).toEqual(pkg.dependencies);
   });
 
   it("server.json names the same registry entry and npm package as package.json", () => {
@@ -80,16 +78,20 @@ describe("version drift", () => {
     for (const name of listed) expect(readme, `README should mention ${name}`).toContain(name);
   });
 
-  it("CHANGELOG.md has a dated entry for the current version", () => {
+  it("CHANGELOG.md has an unreleased or dated entry for the current version", () => {
     const changelog = readRepoFile("CHANGELOG.md");
     const escaped = pkg.version.replace(/\./g, "\\.");
-    expect(changelog).toMatch(new RegExp(`^## \\[${escaped}\\] - \\d{4}-\\d{2}-\\d{2}$`, "m"));
+    const currentEntry = new RegExp(
+      `^## \\[${escaped}\\] - \\d{4}-\\d{2}-\\d{2}$|^## \\[Unreleased\\]\\r?\\n\\r?\\nChanges for ${escaped}\\.$`,
+      "m",
+    );
+    expect(changelog).toMatch(currentEntry);
   });
 });
 
 describe("README claims match the server", () => {
   it("the README tool tables list exactly the tools the server registers", async () => {
-    expect(readmeToolNames()).toEqual(await registeredToolNames());
+    expect(readmeTools().map(([name]) => name).sort()).toEqual(await registeredToolNames());
   });
 
   it("the README's stated tool total matches the number of registered tools", async () => {
@@ -98,11 +100,25 @@ describe("README claims match the server", () => {
     expect(totals).toEqual([registered.length]);
   });
 
+  it("the README's tool and kit totals match both code-execution settings", async () => {
+    const kitByTool = new Map(readmeTools());
+    const totals = [];
+    for (const codeExec of [false, true]) {
+      const names = await registeredToolNames(codeExec);
+      totals.push([names.length, new Set(names.map((name) => kitByTool.get(name))).size]);
+    }
+    const documented = [...readme.matchAll(/\*\*(\d+) tools across (\d+) kits\*\*/g)]
+      .map(([, tools, kits]) => [Number(tools), Number(kits)]);
+    expect(documented).toEqual(totals);
+  });
+
   it("the README's split between content-checking and scaffolding tools matches the server", async () => {
     const registered = await registeredToolNames();
     const scaffolding = registered.filter((name) => name.startsWith("scaffold_"));
     const match = /\*\*(\d+) content-checking kits, (\d+) tools\*\*/.exec(readme);
     expect(match, "README should state the content-checking split").not.toBeNull();
+    const contentKits = new Set(readmeTools().filter(([name]) => !name.startsWith("scaffold_")).map(([, kit]) => kit));
+    expect(Number(match?.[1])).toBe(contentKits.size);
     expect(Number(match?.[2])).toBe(registered.length - scaffolding.length);
     expect(readme).toMatch(new RegExp(`\\*\\*${scaffolding.length} scaffolding tools\\*\\*`));
   });
@@ -111,7 +127,6 @@ describe("README claims match the server", () => {
     const kits = Object.keys(pkg.dependencies).filter(
       (name) => name !== "@modelcontextprotocol/sdk" && name !== "zod",
     );
-    expect(kits).toHaveLength(11);
-    for (const kit of kits) expect(readme, `README should mention ${kit}`).toContain(kit);
+    expect(new Set(readmeTools().map(([, kit]) => kit))).toEqual(new Set(kits));
   });
 });

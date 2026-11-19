@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Changes for 0.4.0.
+
+### Added
+
+- `trace_numbers` traces numbers in an answer to supplied evidence, with optional derivations such as sums.
+- `assess_accuracy_claim` evaluates a claimed figure from supplied counts and returns the kit's suggested statement.
+- `check_parity` compares canonical and mirror records or audits date changes across review snapshots.
+- `check_freshness` reports which review dates are aging or stale at an explicitly supplied as-of date.
+
+### Changed
+
+- The grounding, provenance, static payout-identifier and audit-chain summaries now name the structural checks they ran. A grounded unit is not confirmed true.
+- The server lists 17 tools across 14 kits by default and 18 tools across 15 kits with code execution enabled.
+
 ## [0.3.0] - 2026-10-12
 
 Moves to the newer release line of each wrapped kit, which carries the integrated fixes (see Dependencies below and "Kit versions" in the README). Each tool still reads the installed kit's version, so an older kit installed through an override is described and refused correctly.

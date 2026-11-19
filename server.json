@@ -1,9 +1,9 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.lkopietz3-byte/honesty-mcp",
-  "description": "MCP server exposing 11 honesty-SDK kits (grounding, trust, audit, corroboration) as agent tools.",
+  "description": "MCP server exposing 15 honesty-SDK kits for checking claims, evidence and data.",
   "title": "honesty-mcp",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "repository": {
     "url": "https://github.com/lkopietz3-byte/honesty-mcp",
     "source": "github",
@@ -14,7 +14,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "honesty-mcp",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "transport": {
         "type": "stdio"
       },
