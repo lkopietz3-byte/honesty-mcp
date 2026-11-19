@@ -89,7 +89,7 @@ describe.each([
     });
     expect("thrown" in outcome ? true : outcome.isError).not.toBe(true);
     expect(JSON.stringify(outcome)).not.toContain("must never be returned");
-    if (!("thrown" in outcome)) expect(outcome.content?.[0]?.text).toContain("CLEAN");
+    if (!("thrown" in outcome)) expect(outcome.content?.[0]?.text).toContain("No configured payout identifiers matched");
   });
 
   it("still scans content that the caller sends", async () => {

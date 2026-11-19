@@ -50,10 +50,13 @@ const MUTATION_ARGS = {
 
 const ALL_TOOLS = [
   "append_audit_entry",
+  "assess_accuracy_claim",
   "assess_anonymous_authenticity",
   "check_claims_registry",
+  "check_freshness",
   "check_grounding",
   "check_mutation_invariance",
+  "check_parity",
   "check_payout_invariance",
   "check_provenance_claims",
   "compute_divergence",
@@ -62,6 +65,7 @@ const ALL_TOOLS = [
   "scaffold_agent_receipts",
   "scaffold_cost_governor",
   "score_trust_identified",
+  "trace_numbers",
   "verify_audit_chain",
 ];
 
@@ -84,7 +88,7 @@ describe("variable unset", () => {
     setSwitch(undefined);
   });
 
-  it("does not register check_mutation_invariance, and registers the other 13 tools", async () => {
+  it("does not register check_mutation_invariance, and registers the other 17 tools", async () => {
     const { client, close } = await connect();
     try {
       const { tools } = await client.listTools();
@@ -248,7 +252,7 @@ describe.each(["true", "yes", "0", "", "garbage"])("variable set to %j", (value)
     try {
       const names = (await client.listTools()).tools.map((t) => t.name);
       expect(names).not.toContain("check_mutation_invariance");
-      expect(names).toHaveLength(13);
+      expect(names).toHaveLength(17);
     } finally {
       await close();
     }
@@ -266,7 +270,7 @@ describe('variable set to "1"', () => {
     setSwitch("1");
   });
 
-  it("registers all 14 tools, including check_mutation_invariance, and the instructions are absent", async () => {
+  it("registers all 18 tools, including check_mutation_invariance, and the instructions are absent", async () => {
     const { client, close } = await connect();
     try {
       const names = (await client.listTools()).tools.map((t) => t.name).sort();

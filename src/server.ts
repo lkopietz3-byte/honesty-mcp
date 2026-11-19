@@ -16,11 +16,15 @@ import { registerAuditChainTools } from "./tools/auditChain.js";
 import { registerAgentReceiptScaffoldTool } from "./tools/agentReceiptScaffold.js";
 import { registerCostGovernorScaffoldTool } from "./tools/costGovernorScaffold.js";
 import { registerAdviceLedgerGradeTool, registerAdviceLedgerDivergenceTool } from "./tools/adviceLedger.js";
+import { registerNumberTraceTool } from "./tools/numberTrace.js";
+import { registerAccuracyClaimTool } from "./tools/accuracyClaim.js";
+import { registerParityTool } from "./tools/parity.js";
+import { registerFreshnessTool } from "./tools/freshness.js";
 
 /** The name this server reports to MCP clients during the initialize handshake. */
 export const SERVER_NAME = "honesty-mcp";
 /** The version this server reports to MCP clients. Keep in sync with package.json's `version`. */
-export const SERVER_VERSION = "0.3.0";
+export const SERVER_VERSION = "0.4.0";
 
 /**
  * Text sent to MCP clients in the initialize result while code execution is
@@ -45,11 +49,8 @@ export function createServer(): McpServer {
     isCodeExecEnabled() ? undefined : { instructions: CODE_EXEC_OFF_INSTRUCTIONS },
   );
 
-  // 14 tools when code execution is enabled, 13 when it is off (the default;
-  // check_mutation_invariance is then not registered).
-  // 9 content-checking kits, 12 tools (one tool each, except payout-invariance,
-  // audit-chain, and advice-ledger which each split into two genuinely
-  // distinct operations -- see README.md for the mapping).
+  // 16 tools across 13 content-checking kits when code execution is enabled.
+  // With code execution off, check_mutation_invariance is not registered.
   registerGroundingTool(server);
   registerCorroborationTool(server);
   registerPayoutInvarianceTool(server);
@@ -61,6 +62,10 @@ export function createServer(): McpServer {
   registerAuditChainTools(server); // append_audit_entry + verify_audit_chain
   registerAdviceLedgerGradeTool(server); // grade_decision
   registerAdviceLedgerDivergenceTool(server); // compute_divergence
+  registerNumberTraceTool(server);
+  registerAccuracyClaimTool(server);
+  registerParityTool(server);
+  registerFreshnessTool(server);
 
   // 2 scaffold/guidance tools (agent-receipt-kit, cost-governor-kit -- runtime
   // libraries, not content checks).

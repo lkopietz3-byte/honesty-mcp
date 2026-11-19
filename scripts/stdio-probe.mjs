@@ -12,7 +12,7 @@
 // HONESTY_MCP_ENABLE_CODE_EXEC is exactly "1":
 //
 //   Session 1 (variable unset, the default):
-//     a. tools/list shows 13 tools: check_mutation_invariance is absent,
+//     a. tools/list shows 17 tools: check_mutation_invariance is absent,
 //        check_payout_invariance lists static-imports mode only, and
 //        compute_divergence has no groupBySource input.
 //     b. A tool that does not run caller code still answers.
@@ -83,6 +83,19 @@ const ONE_VALID_CALL_PER_TOOL = {
     observations: [],
   },
   compute_divergence: { pairs: [{ engineJudgment: 'a', humanJudgment: 'a' }] },
+  trace_numbers: { answer: '12 orders.', evidence: '12 orders.' },
+  assess_accuracy_claim: {
+    claim: { metric: 'accuracy', value: 0.98, display: '98%' },
+    sample: { n: 1000, correct: 990 },
+    provenance: { source: 'human' },
+    sampling: 'random',
+  },
+  check_parity: { check: { mode: 'mirror', canonical: [{ id: 'a', price: 10 }], mirror: [{ id: 'a', price: 10 }] } },
+  check_freshness: {
+    records: [{ id: 'a', reviewedOn: '2026-01-31' }],
+    config: { warnAfterDays: 14, staleAfterDays: 45 },
+    now: NOW,
+  },
   scaffold_agent_receipts: {},
   scaffold_cost_governor: {},
 };
@@ -181,7 +194,7 @@ try {
   );
   const offTools = await active.listTools();
   const offNames = offTools.map((tool) => tool.name);
-  assert.equal(offNames.length, 13, `expected 13 tools by default, got ${offNames.length}`);
+  assert.equal(offNames.length, 17, `expected 17 tools by default, got ${offNames.length}`);
   assert.ok(!offNames.includes('check_mutation_invariance'), 'check_mutation_invariance must not be listed by default');
   const offPayout = offTools.find((tool) => tool.name === 'check_payout_invariance');
   assert.deepEqual(offPayout?.inputSchema?.properties?.mode?.enum, ['static-imports']);
@@ -209,7 +222,7 @@ try {
   const onInit = await active.initialize();
   assert.equal(onInit.result?.instructions, undefined, 'no code-execution-off instructions when enabled');
   const onNames = (await active.listTools()).map((tool) => tool.name);
-  assert.equal(onNames.length, 14, `expected 14 tools when enabled, got ${onNames.length}`);
+  assert.equal(onNames.length, 18, `expected 18 tools when enabled, got ${onNames.length}`);
 
   await active.callTool('check_payout_invariance', {
     mode: 'runtime',
