@@ -43,7 +43,7 @@ const IDENTIFIER_PARTS_MIN_VERSION = "0.3.0";
 function matchingNote(partsSupported: boolean): string {
   return (
     "Matching is whole-word and case-insensitive: the identifier `commission` is NOT matched inside " +
-    "`commissionRate`, `commission_rate`, `affiliateUrl` or `payoutPerClick`, so those names pass as CLEAN. " +
+    "`commissionRate`, `commission_rate`, `affiliateUrl` or `payoutPerClick`, so those names do not match. " +
     (partsSupported
       ? "Pass `matchIdentifierParts: true` to also find an identifier as one part of a longer camelCase, snake_case, " +
         "SCREAMING_CASE or kebab-case name (it still does not match plurals such as `affiliates`, or a word fused into " +
@@ -72,7 +72,7 @@ function staticImportsDescription(partsSupported: boolean): string {
     "of path -> content; this server does not read paths from disk, and a list of paths is rejected. " +
     matchingNote(partsSupported) +
     "It is a best-effort text/regex grep, not a real parser (it won't catch a dynamically-built import specifier " +
-    "or a re-export under an aliased name). A CLEAN result means no match in the text you sent, not that the " +
+    "or a re-export under an aliased name). An empty result means no match in the text you sent, not that the " +
     "engine is payout-neutral in general; re-run this in CI whenever the ranking logic changes."
   );
 }
@@ -125,8 +125,7 @@ const staticImportsShape = {
     .optional()
     .describe(
       "[static-imports mode, required, at least one file] Source files to scan for payout references, as a " +
-        "map of path -> content. A list of paths is an error. An empty map is a tool error, never a CLEAN " +
-        "result over zero files.",
+        "map of path -> content. A list of paths or an empty map is a tool error.",
     ),
   payoutIdentifiers: z
     .array(z.string())
@@ -314,7 +313,7 @@ function runStaticImportsMode(args: {
   const fileCount = Object.keys(args.files).length;
   const summary =
     offenses.length === 0
-      ? `CLEAN: no payout-related identifiers found across ${fileCount} file(s).`
+      ? `No configured payout identifiers matched the supplied text across ${fileCount} file(s).`
       : `FOUND payout-related identifiers in ${offenses.length}/${fileCount} file(s).`;
   return jsonResult(summary, offenses);
 }
