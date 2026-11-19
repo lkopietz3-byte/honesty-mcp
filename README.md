@@ -258,7 +258,7 @@ Tools with version-dependent behavior describe the installed kit and reject
 inputs that an older override would silently ignore, such as
 `matchIdentifierParts` with payout-invariance-kit 0.2.
 
-| Kit | Version | What it changes through this server |
+| Kit | Minimum version | What it changes through this server |
 |---|---|---|
 | grounding-kit | 0.3.0 | Each unit carries `reasons`, and the result lists `nonClaims`. Verdicts move in both directions (sentence boundaries after abbreviations, closing quotes and dashes; rules and table separators are no longer units). |
 | corroboration-kit | 0.3.0 | Sources count by independent origin. New inputs `origin`, `derivedFrom` and `inferOrigins`; the result gains `groups`. A verdict can only get stricter. |
