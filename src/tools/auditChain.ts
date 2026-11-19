@@ -128,7 +128,8 @@ export function registerAuditChainTools(server: McpServer): void {
           : chain.length === 0
             ? "VALID (empty chain): nothing was checked. An empty chain passes by default, so this is not evidence " +
               "that a log has content; pass `expectedMinLength` or an `anchor` if entries should exist."
-            : `VALID: all ${chain.length} entr${chain.length === 1 ? "y" : "ies"} verified.`;
+            : `Hash-chain checks found no problems across ${chain.length} entr${chain.length === 1 ? "y" : "ies"}. ` +
+              "Recorded events are outside the scope of this check.";
         return jsonResult(summary, result);
       } catch (err) {
         return errorResult(errorMessage(err));

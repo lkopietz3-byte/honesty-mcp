@@ -96,7 +96,8 @@ export function registerProvenanceTool(server: McpServer): void {
             : "";
         const summary =
           offenses.length === 0
-            ? `CLEAN: ${claims.length} claim(s) checked; no wording offenses found under the configured rules (this does not verify the claims).${defaultListNote}`
+            ? `No wording offenses found under the configured rules across ${claims.length} claim(s) checked. ` +
+              `This scan checks language and provenance fields only.${defaultListNote}`
             : `FOUND ${offenses.length} offense(s) across ${claims.length} claim(s).`;
         return jsonResult(summary, offenses);
       } catch (err) {

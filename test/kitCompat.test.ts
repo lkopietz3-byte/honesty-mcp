@@ -20,6 +20,10 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { corroborate, type Coverage } from "corroboration-kit";
 import { anonymous } from "trust-core";
 import { assertNoPayoutImports } from "payout-invariance-kit";
+import { traceNumbers } from "number-trace-kit";
+import { assessAccuracyClaim, type AccuracyClaimInput } from "accuracy-claim-kit";
+import { auditReviewStamps, compareMirror } from "parity-kit";
+import { checkDatasetFreshness } from "freshness-kit";
 import { createServer } from "../src/server.js";
 import { installedKitVersion, kitAtLeast, parseVersion, versionAtLeast } from "../src/lib/kitVersion.js";
 
@@ -67,6 +71,64 @@ const NEW_TRUST = kitAtLeast("trust-core", "0.3.0");
 const NEW_LEDGER = kitAtLeast("advice-ledger-kit", "0.3.0");
 const NEW_REGISTRY = kitAtLeast("claims-registry-kit", "0.4.0");
 const NEW_PROVENANCE = kitAtLeast("provenance-kit", "0.3.0");
+
+describe("new tools match the installed kit exports", () => {
+  it("passes the report preset through to number-trace-kit", async () => {
+    const answer = "Total: 27 orders.";
+    const evidence = "North: 12 orders. South: 15 orders.";
+    const options = { preset: "report" } as const;
+    const expected = traceNumbers(answer, evidence, options);
+    expect(expected.numbers[0]?.derivation?.kind).toBe("sum");
+    expect(jsonOf(await call("trace_numbers", { answer, evidence, options }))).toEqual(expected);
+    expect((await call("trace_numbers", { answer, evidence, options: { perset: "report" } })).isError).toBe(true);
+  });
+
+  it("passes fixed-set scope and options through to accuracy-claim-kit", async () => {
+    const input: AccuracyClaimInput = {
+      claim: { metric: "accuracy", value: 0.799, display: "79.9%", text: "79.9% on the Ridgeview validation set" },
+      sample: { n: 50_000, correct: 39_950 },
+      provenance: { source: "human" },
+      sampling: "complete",
+      benchmark: { name: "Ridgeview validation set" },
+      population: { claimed: "Ridgeview", evaluated: "Ridgeview" },
+    };
+    const options = { requireScope: true };
+    const expected = assessAccuracyClaim(input, options);
+    expect(expected.basis).toBe("census");
+    expect(expected.verdict).toBe("supported");
+    expect(jsonOf(await call("assess_accuracy_claim", { ...input, options }))).toEqual(expected);
+  });
+
+  it("preserves keyed mirror data and passes the field options through to parity-kit", async () => {
+    const canonical = { ["__proto__"]: { price: 10, note: "source" } };
+    const mirror = { ["__proto__"]: { price: 25, note: "copy" } };
+    const options = { fields: ["price"] };
+    const expected = compareMirror(canonical, mirror, options);
+    expect(expected.changed).toMatchObject([{ id: "__proto__", field: "price" }]);
+    expect(jsonOf(await call("check_parity", { check: { mode: "mirror", canonical, mirror, options } }))).toEqual(expected);
+  });
+
+  it("passes ignored fields through to the parity-kit stamp audit", async () => {
+    const before = [{ id: "a", price: 10, reviewedOn: "2026-01-01", updatedAt: "yesterday" }];
+    const after = [{ id: "a", price: 10, reviewedOn: "2026-01-02", updatedAt: "today" }];
+    const options = { reviewedField: "reviewedOn", sourceFields: [], ignoreFields: ["updatedAt"] };
+    const expected = auditReviewStamps(before, after, options);
+    expect(expected.stampOnly).toHaveLength(1);
+    expect(jsonOf(await call("check_parity", { check: { mode: "review-stamps", before, after, options } }))).toEqual(expected);
+  });
+
+  it("passes the supplied instant and thresholds through to freshness-kit", async () => {
+    const records = [
+      { id: "older", reviewedOn: "2026-06-01" },
+      { id: "at-warning-limit", reviewedOn: "2026-07-19T12:00:00Z" },
+    ];
+    const now = "2026-08-02T07:00:00-05:00";
+    const config = { warnAfterDays: 14, staleAfterDays: 45 };
+    const expected = checkDatasetFreshness(records, config, undefined, new Date("2026-08-02T12:00:00Z"));
+    expect(expected.records.map(({ result }) => result.level)).toEqual(["stale", "fresh"]);
+    expect(jsonOf(await call("check_freshness", { records, config, now }))).toEqual(expected);
+  });
+});
 
 describe("kit version helper", () => {
   it.each([
@@ -173,7 +235,7 @@ describe("check_payout_invariance: static-imports matching", () => {
 
   it("matches whole words by default: commission does not match commissionRate", async () => {
     const result = await call("check_payout_invariance", { mode: "static-imports", files, payoutIdentifiers: ["commission", "affiliate"] });
-    expect(summaryOf(result)).toMatch(/^CLEAN/);
+    expect(summaryOf(result)).toMatch(/^No configured payout identifiers matched/);
     expect(jsonOf(result)).toEqual(assertNoPayoutImports(files, ["commission", "affiliate"]));
   });
 
@@ -197,7 +259,7 @@ describe("check_payout_invariance: static-imports matching", () => {
       payoutIdentifiers: ["commission"],
       matchIdentifierParts: false,
     });
-    expect(summaryOf(result)).toMatch(/^CLEAN/);
+    expect(summaryOf(result)).toMatch(/^No configured payout identifiers matched/);
   });
 
   it.skipIf(NEW_PAYOUT)("refuses matchIdentifierParts:true instead of ignoring it (older kit)", async () => {
@@ -335,25 +397,25 @@ describe("check_provenance_claims", () => {
     expect(description).toContain("outside this guarantee");
   });
 
-  it("the description says the default list is small and what that means for a CLEAN result", async () => {
+  it("the description says what the default wording scan can miss", async () => {
     const description = await descriptionOf("check_provenance_claims");
     expect(description).toMatch(/SOC 2|HIPAA|best-in-class/);
   });
 
-  it("a CLEAN result with the default list says how short the list is", async () => {
+  it("a result with no wording offenses says how short the default list is", async () => {
     const result = await call("check_provenance_claims", {
       claims: [{ id: "a", text: "SOC 2 certified and HIPAA-ready.", tier: "editorial" }],
     });
-    expect(summaryOf(result)).toMatch(/^CLEAN/);
+    expect(summaryOf(result)).toMatch(/^No wording offenses found/);
     expect(summaryOf(result)).toMatch(/default phrase list has only \d+ phrases/);
   });
 
-  it("a CLEAN result with a custom list does not claim anything about the default list", async () => {
+  it("an empty finding list with custom phrases omits the default-list note", async () => {
     const result = await call("check_provenance_claims", {
       claims: [{ id: "a", text: "Plain text.", tier: "editorial" }],
       certaintyPhrases: ["guaranteed"],
     });
-    expect(summaryOf(result)).toMatch(/^CLEAN/);
+    expect(summaryOf(result)).toMatch(/^No wording offenses found/);
     expect(summaryOf(result)).not.toMatch(/default phrase list/);
   });
 
@@ -394,11 +456,13 @@ describe("verify_audit_chain: summary", () => {
     expect(summaryOf(result)).not.toMatch(/all 0 entries verified/);
   });
 
-  it("still says all entries verified for a real chain", async () => {
+  it("scopes a valid chain summary to hash-chain checks", async () => {
     const appended = await call("append_audit_entry", { chain: [], payload: { step: 0 } });
     const chain = jsonOf(appended).chain;
     const result = await call("verify_audit_chain", { chain });
-    expect(summaryOf(result)).toMatch(/^VALID: all 1 entry verified/);
+    expect(jsonOf(result).valid).toBe(true);
+    expect(summaryOf(result)).toMatch(/^Hash-chain checks found no problems across 1 entry\./);
+    expect(summaryOf(result)).toContain("Recorded events are outside the scope of this check.");
   });
 });
 

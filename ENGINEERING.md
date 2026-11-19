@@ -25,12 +25,12 @@
    provenance validation, claims staleness, audit-chain hashing, or
    decision grading — it only translates between MCP/Zod and the kit's own
    types.
-4. `SERVER_VERSION` (`src/server.ts`), `package.json`'s `version` and both
-   versions in `server.json` are separate values that you bump by hand on
+4. `SERVER_VERSION` (`src/server.ts`), the package and lockfile versions, and
+   both versions in `server.json` are separate values that you bump by hand on
    release. `test/drift.test.ts` fails if they disagree, and also checks that
    the README's tool tables and tool totals match what the server registers.
 5. Zero runtime dependencies beyond `@modelcontextprotocol/sdk`, `zod`, and
-   the eleven published sibling kits (semver ranges, not `file:` links).
+   the fifteen published sibling kits (semver ranges, not `file:` links).
 6. Where a wrapped kit has two release lines (see "Kit versions" in the README),
    an input or description that exists only in the newer line is gated on the
    installed version (`src/lib/kitVersion.ts`). A new input is passed to the kit
@@ -43,7 +43,7 @@
 ## Setup and verification
 
 ```bash
-npm install             # resolves the 11 sibling kits from the npm registry
+npm install             # resolves the 15 sibling kits from the npm registry
 npm run verify           # lint + typecheck + test + build + smoke + stdio + installed consumer
 npm audit --include=dev
 ```
@@ -103,8 +103,8 @@ build), but it's why that rename shows up in this server's own git history.
 
 `npm run verify` (lint, typecheck, test, build, smoke, stdio and installed consumer) runs automatically before publish via
 the `prepublishOnly` script, so a broken build cannot reach the registry by accident. To
-release: bump `version` in `package.json` AND `SERVER_VERSION` in `src/server.ts` (see
-invariant 4), add a dated `CHANGELOG.md` entry, commit, and push a `vX.Y.Z` tag that matches
+release: bump the versions listed in invariant 4, move the unreleased changes to a dated
+`CHANGELOG.md` entry, commit, and push a `vX.Y.Z` tag that matches
 the new version — `.github/workflows/release.yml` then installs, verifies, publishes it to npm,
 and lists it in the MCP registry. Bump `server.json`'s `version` (and its `packages[0].version`)
 to match first; the workflow fails if they differ. (You can also run `npm publish` locally;

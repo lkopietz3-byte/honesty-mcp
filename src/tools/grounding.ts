@@ -77,13 +77,12 @@ export function registerGroundingTool(server: McpServer): void {
       try {
         const result = classifyDocument(text, evidence);
         const summary = result.isClean
-          ? `Structurally clean: ${result.sentences.length} checked unit(s), ${result.counts.placeholder} placeholder(s), ` +
-            `${result.counts.grounded} grounded, 0 ungrounded, 0 invalid citations. This does not verify truth or semantic support.`
+          ? `No structural problems found in ${result.sentences.length} checked unit(s). ` +
+            `${result.counts.placeholder} placeholder(s), ${result.counts.grounded} grounded, 0 ungrounded, 0 invalid citations.`
           : `${result.counts.invalid} invalid unit(s) (missing evidence or rejected by the default support matcher), ` +
             `${result.counts.ungrounded} ungrounded unit(s), ${result.counts.placeholder} placeholder(s), ` +
-            `${result.counts.grounded} grounded, out of ${result.sentences.length} checked unit(s). ` +
-            "This does not verify truth or semantic support.";
-        return jsonResult(summary, result);
+            `${result.counts.grounded} grounded, out of ${result.sentences.length} checked unit(s).`;
+        return jsonResult(`${summary} A grounded unit is not confirmed true or semantically supported.`, result);
       } catch (err) {
         return errorResult(errorMessage(err));
       }

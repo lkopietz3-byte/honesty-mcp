@@ -64,16 +64,19 @@ function parseSummary(result: unknown): string {
 }
 
 describe("tool listing", () => {
-  it("lists all 14 registered tools with the expected names", async () => {
+  it("lists all 18 registered tools with the expected names", async () => {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual(
       [
         "append_audit_entry",
+        "assess_accuracy_claim",
         "assess_anonymous_authenticity",
         "check_claims_registry",
+        "check_freshness",
         "check_grounding",
         "check_mutation_invariance",
+        "check_parity",
         "check_payout_invariance",
         "check_provenance_claims",
         "compute_divergence",
@@ -82,6 +85,7 @@ describe("tool listing", () => {
         "scaffold_agent_receipts",
         "scaffold_cost_governor",
         "score_trust_identified",
+        "trace_numbers",
         "verify_audit_chain",
       ].sort(),
     );
@@ -92,6 +96,126 @@ describe("tool listing", () => {
       expect(tool.description!.length).toBeGreaterThan(40);
       expect(tool.inputSchema).toBeTruthy();
     }
+    for (const name of ["trace_numbers", "assess_accuracy_claim", "check_parity", "check_freshness"]) {
+      expect(tools.find((tool) => tool.name === name)?.annotations).toEqual({
+        readOnlyHint: true,
+        openWorldHint: false,
+      });
+    }
+  });
+});
+
+describe("trace_numbers (number-trace-kit)", () => {
+  const evidence = "North: 12 orders. South: 15 orders.";
+
+  it.each([
+    ["North: 12 orders.", "clean", "traced"],
+    ["North: 13 orders.", "untraced", "untraced"],
+  ])("returns %s as a numeric trace report", async (answer, verdict, status) => {
+    const result = await client.callTool({ name: "trace_numbers", arguments: { answer, evidence } });
+    expect(parseJson(result)).toMatchObject({ verdict, numbers: [{ status }] });
+  });
+
+  it("rejects evidence over the text cap", async () => {
+    const result = await client.callTool({
+      name: "trace_numbers",
+      arguments: { answer: "1 order.", evidence: "a".repeat(2_000_001) },
+    });
+    expect(result.isError).toBe(true);
+  });
+});
+
+describe("assess_accuracy_claim (accuracy-claim-kit)", () => {
+  const evidence = { sample: { n: 1_000, correct: 990 }, provenance: { source: "human" }, sampling: "random" };
+
+  it.each([
+    ["98%", 0.98, "supported"],
+    ["99.5%", 0.995, "contradicted"],
+  ])("assesses %s against the counts and returns the suggested statement", async (display, value, verdict) => {
+    const result = await client.callTool({
+      name: "assess_accuracy_claim",
+      arguments: { claim: { metric: "accuracy", value, display }, ...evidence },
+    });
+    const report = parseJson(result);
+    expect(report.verdict).toBe(verdict);
+    expect(report.suggestedStatement).toContain("95% Wilson interval 98.16% to 99.46%");
+    expect(parseSummary(result)).toContain(report.suggestedStatement);
+  });
+
+  it.each([
+    { claim: { metric: "accuracy", value: 0.98, display: " ".repeat(65) } },
+    { sample: { n: 1_000, correct: 1_001 } },
+  ])("rejects an oversized display or impossible counts", async (override) => {
+    const result = await client.callTool({
+      name: "assess_accuracy_claim",
+      arguments: { ...evidence, claim: { metric: "accuracy", value: 0.98 }, ...override },
+    });
+    expect(result.isError).toBe(true);
+  });
+});
+
+describe("check_parity (parity-kit)", () => {
+  it.each([[10, "ok"], [25, "flagged"]])("compares a mirror with price %s", async (price, status) => {
+    const result = await client.callTool({
+      name: "check_parity",
+      arguments: { check: { mode: "mirror", canonical: [{ id: "a", price: 10 }], mirror: [{ id: "a", price }] } },
+    });
+    expect(parseJson(result)).toMatchObject({ status, ok: status === "ok", compared: 1 });
+  });
+
+  it.each([[11, "ok"], [10, "flagged"]])("audits a review-stamp move with price %s", async (price, status) => {
+    const result = await client.callTool({
+      name: "check_parity",
+      arguments: {
+        check: {
+          mode: "review-stamps",
+          before: [{ id: "a", price: 10, reviewedOn: "2026-01-01" }],
+          after: [{ id: "a", price, reviewedOn: "2026-01-02" }],
+          options: { reviewedField: "reviewedOn", sourceFields: [] },
+        },
+      },
+    });
+    const report = parseJson(result);
+    expect(report.status).toBe(status);
+    expect(report.stampOnly).toEqual(price === 10 ? [{ id: "a", from: "2026-01-01", to: "2026-01-02" }] : []);
+  });
+
+  it.each([
+    { mode: "mirror", canonical: "records.json", mirror: [] },
+    { mode: "mirror", canonical: Array.from({ length: 10_001 }, () => ({})), mirror: [] },
+    { mode: "review-stamps", before: [], after: [], options: { reviewedField: "reviewedOn" } },
+  ])("rejects paths, oversized datasets and incomplete audit options", async (check) => {
+    const result = await client.callTool({ name: "check_parity", arguments: { check } });
+    expect(result.isError).toBe(true);
+  });
+});
+
+describe("check_freshness (freshness-kit)", () => {
+  const config = { warnAfterDays: 14, staleAfterDays: 45 };
+  const now = "2026-08-02T12:00:00Z";
+
+  it.each([
+    ["2026-07-20", "fresh", 13],
+    ["2026-06-01", "stale", 62],
+  ])("evaluates a %s review against the supplied clock", async (reviewedOn, level, ageDays) => {
+    const result = await client.callTool({
+      name: "check_freshness", arguments: { records: [{ id: "a", reviewedOn }], config, now },
+    });
+    expect(parseJson(result)).toMatchObject({ level, records: [{ result: { level, ageDays } }] });
+  });
+
+  it.each([undefined, "2026-08-02T12:00:00", "2026-02-30"])("rejects missing or invalid now (%s)", async (now) => {
+    const result = await client.callTool({
+      name: "check_freshness", arguments: { records: [], config, now },
+    });
+    expect(result.isError).toBe(true);
+  });
+
+  it("returns a tool error for an impossible review date", async () => {
+    const result = await client.callTool({
+      name: "check_freshness", arguments: { records: [{ id: "a", reviewedOn: "2026-06-31" }], config, now },
+    });
+    expect(result.isError).toBe(true);
   });
 });
 
@@ -121,7 +245,7 @@ describe("check_grounding (grounding-kit)", () => {
   it.each([
     "[citation needed].",
     "The bridge was completed in 1932 [[cite:1]]. [TK].",
-  ])("reports structural cleanliness and visible gaps for %s", async (text) => {
+  ])("reports structural findings and visible gaps for %s", async (text) => {
     const evidence = { "1": "Construction of the bridge finished in 1932." };
     const expected = classifyDocument(text, evidence);
     expect(expected.isClean).toBe(true);
@@ -129,10 +253,10 @@ describe("check_grounding (grounding-kit)", () => {
     const result = await client.callTool({ name: "check_grounding", arguments: { text, evidence } });
     expect(parseJson(result)).toEqual(expected);
     const summary = parseSummary(result);
-    expect(summary).toContain("Structurally clean:");
+    expect(summary).toContain("No structural problems found");
     expect(summary).toContain(`${expected.sentences.length} checked unit(s)`);
     expect(summary).toContain("1 placeholder(s)");
-    expect(summary).toContain("does not verify truth or semantic support");
+    expect(summary).toContain("A grounded unit is not confirmed true");
   });
 
   it("flags a forged / unsupported citation as invalid", async () => {
@@ -155,7 +279,7 @@ describe("check_grounding (grounding-kit)", () => {
     expect(invalidSentence.citedIds).toContain("2");
   });
 
-  it("reports clean for a document whose citations are all backed by evidence", async () => {
+  it("accepts citations that match the supplied evidence lexically", async () => {
     const result = await client.callTool({
       name: "check_grounding",
       arguments: {
@@ -273,7 +397,7 @@ describe("check_payout_invariance (payout-invariance-kit)", () => {
     [{}, ["payout"], "files is empty"],
     // A list of paths (including an empty one) is rejected outright now; see test/fileRead.test.ts.
     [{ "a.ts": "x" }, ["payout", "\u200b"], "payoutIdentifiers[1] is blank"],
-  ])("static-imports mode reports an empty scope or blank identifier as a tool error, never CLEAN", async (files, payoutIdentifiers, message) => {
+  ])("static-imports mode reports an empty scope or blank identifier as a tool error", async (files, payoutIdentifiers, message) => {
     const result = (await client.callTool({
       name: "check_payout_invariance",
       arguments: { mode: "static-imports", files, payoutIdentifiers },
@@ -293,16 +417,14 @@ describe("check_payout_invariance (payout-invariance-kit)", () => {
 });
 
 describe("check_provenance_claims (provenance-kit)", () => {
-  it("describes a clean result as no wording offenses, not as verified claims", async () => {
+  it("scopes an empty finding list to wording and provenance fields", async () => {
     const result = await client.callTool({
       name: "check_provenance_claims",
       arguments: { claims: [{ id: "c1", text: "Our tool summarizes public filings.", tier: "editorial" }] },
     });
     expect(parseJson(result)).toEqual([]);
-    // With the default phrase list the summary adds a sentence about how short that list is
-    // (see test/kitCompat.test.ts); the verdict sentence itself is unchanged.
     expect(parseSummary(result)).toMatch(
-      /^CLEAN: 1 claim\(s\) checked; no wording offenses found under the configured rules \(this does not verify the claims\)\./,
+      /^No wording offenses found under the configured rules across 1 claim\(s\) checked\. This scan checks language and provenance fields only\./,
     );
     const { tools } = await client.listTools();
     const description = tools.find((tool) => tool.name === "check_provenance_claims")?.description ?? "";
