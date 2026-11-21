@@ -48,6 +48,41 @@ describe("runFunctionJob: caller output never reaches stdout", () => {
     expect(stdoutWrites.join("")).not.toMatch(/LEAK_/);
     expect(stderrWrites.join("")).toMatch(/LEAK_LOG/);
   });
+
+  it.each([
+    { kind: "ASCII", letter: "a", repeats: 20_000, expectedBytes: 16_384 },
+    // Start with one ASCII byte so the cap lands halfway through an accented letter.
+    { kind: "accented letters", letter: "é", repeats: 10_000, expectedBytes: 16_383 },
+  ])("caps a flood of $kind at 16 KiB and keeps valid UTF-8", async ({ letter, repeats, expectedBytes }) => {
+    const writes: Buffer[] = [];
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation((chunk: unknown) => {
+      writes.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
+      return true;
+    });
+    try {
+      await runFunctionJob({
+        kind: "mutation-invariance",
+        fnSource: `(x) => {
+          if (x.other === 1) process.stdout.write("a" + ${JSON.stringify(letter)}.repeat(${repeats}));
+          return x.v;
+        }`,
+        baseInput: { v: 1, other: 1 },
+        scenarios: [{ name: "change other", mutateSource: "(i) => ({ ...i, other: 2 })" }],
+      }, JOB_BUDGET_MS);
+    } finally {
+      stderrSpy.mockRestore();
+    }
+
+    const output = new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(writes));
+    const prefix = "[honesty-mcp worker] ";
+    const notice = "\n[honesty-mcp worker] output truncated\n";
+    const payload = output.slice(prefix.length).replace(notice, "");
+    expect(Buffer.byteLength(payload)).toBeLessThanOrEqual(16_384);
+    expect(output.startsWith(prefix)).toBe(true);
+    expect(output.endsWith(notice)).toBe(true);
+    expect(Buffer.byteLength(payload)).toBe(expectedBytes);
+    expect(("a" + letter.repeat(repeats)).startsWith(payload)).toBe(true);
+  });
 });
 
 describe("resolveWorkerTimeoutMs", () => {

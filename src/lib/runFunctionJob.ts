@@ -43,7 +43,9 @@
 // canonical copy directly; runFunctionJob.test.ts exercises this copy
 // end-to-end through the worker).
 
+import { isUtf8 } from "node:buffer";
 import { createRequire } from "node:module";
+import { StringDecoder } from "node:string_decoder";
 import { pathToFileURL } from "node:url";
 import { Worker } from "node:worker_threads";
 import { assertCodeExecEnabled } from "./codeExec.js";
@@ -243,10 +245,13 @@ export function runFunctionJob<T>(job: FunctionJob, timeoutMs: number = resolveW
     let forwarded = 0;
     const forwardToStderr = (chunk: Buffer | string): void => {
       if (forwarded >= MAX_FORWARDED_OUTPUT_BYTES) return;
-      const text = chunk.toString();
+      // Count the UTF-8 bytes that stderr will receive, including any replacement characters.
+      const bytes = typeof chunk === "string" || !isUtf8(chunk) ? Buffer.from(chunk.toString()) : chunk;
       const room = MAX_FORWARDED_OUTPUT_BYTES - forwarded;
-      const slice = text.length > room ? `${text.slice(0, room)}\n[honesty-mcp worker] output truncated\n` : text;
-      forwarded += text.length;
+      const slice = bytes.length > room
+        ? `${new StringDecoder("utf8").write(bytes.subarray(0, room))}\n[honesty-mcp worker] output truncated\n`
+        : bytes.toString();
+      forwarded += Math.min(bytes.length, room);
       process.stderr.write(`[honesty-mcp worker] ${slice}`);
     };
     worker.stdout.on("data", forwardToStderr);

@@ -3,7 +3,7 @@
   "name": "io.github.lkopietz3-byte/honesty-mcp",
   "description": "MCP server exposing 15 honesty-SDK kits for checking claims, evidence and data.",
   "title": "honesty-mcp",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "repository": {
     "url": "https://github.com/lkopietz3-byte/honesty-mcp",
     "source": "github",
@@ -14,7 +14,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "honesty-mcp",
-      "version": "0.4.1",
+      "version": "0.4.2",
       "transport": {
         "type": "stdio"
       },

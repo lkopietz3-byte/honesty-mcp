@@ -24,7 +24,7 @@ import { registerFreshnessTool } from "./tools/freshness.js";
 /** The name this server reports to MCP clients during the initialize handshake. */
 export const SERVER_NAME = "honesty-mcp";
 /** The version this server reports to MCP clients. Keep in sync with package.json's `version`. */
-export const SERVER_VERSION = "0.4.1";
+export const SERVER_VERSION = "0.4.2";
 
 /**
  * Text sent to MCP clients in the initialize result while code execution is
