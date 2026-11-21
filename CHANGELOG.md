@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-11-21
+
+### Fixed
+
+- Worker output copied to stderr is capped at 16 KiB of UTF-8 bytes, as the README says. The cap used to count characters, so accented text could pass through at about twice the limit.
+
+### Changed
+
+- README: the two scaffold tools return worked example verdicts by default, and includeWorkedExample set to false skips them. A plain npx uses an installed copy when one exists.
+- The version string the server reports is 0.4.2.
+
+- README polish from the November 20 audit.
+
 ## [0.4.1] - 2026-11-20
 
 Documentation only. The package code and API are the same as 0.4.0.

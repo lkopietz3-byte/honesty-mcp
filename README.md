@@ -2,11 +2,11 @@
 
 **[Try the kits in your browser →](https://lkopietz3-byte.github.io/honesty-kits/)** · Part of [honesty kits](https://github.com/lkopietz3-byte/honesty-kits), a family of small checks for the claims an AI product makes.
 
-An MCP server that lets a coding agent such as Claude Code or Claude Desktop run the honesty kits as tools. Each tool checks its input and calls the real kit, and the server reimplements nothing. Two kits (agent receipts and spend caps) run inside your own app, so their tools hand you starter code instead of a verdict.
-
-This server is thin by design: every tool is a Zod input schema plus a
-handler that imports and calls the real, unmodified export from the wrapped
-kit. It does not reimplement any of the underlying logic.
+An MCP server that lets a coding agent such as Claude Code or Claude Desktop run
+the honesty kits as tools. The tools validate inputs with Zod and use the kits'
+exports for checks and worked examples. `scaffold_agent_receipts` and
+`scaffold_cost_governor` return guidance and starter code, plus worked example
+verdicts by default. Set `includeWorkedExample` to `false` to skip the examples.
 
 ## Quickstart
 
@@ -30,9 +30,10 @@ freshness-kit. All four tools are available with code execution off.
 
 ## Install
 
-`honesty-mcp` is published on npm. The 0.4.0 package uses registry dependencies
-for all fifteen sibling honesty kits. `npm install` (or a plain `npx`)
-resolves everything from the public registry.
+`honesty-mcp` is published on npm. This package uses registry dependencies
+for all fifteen sibling honesty kits. `npm install honesty-mcp` or
+`npx -y honesty-mcp` fetches the package and its dependencies from the public
+registry on the first run if they are not already installed.
 
 The fastest way to run it, with no install step at all:
 
