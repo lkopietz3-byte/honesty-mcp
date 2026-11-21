@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-20
+
+Documentation only. The package code and API are the same as 0.4.0.
+
+### Changed
+
+- The kit table's version column is labeled as the minimum supported version.
+
 ## [0.4.0] - 2026-11-19
 
 ### Added

@@ -1,6 +1,6 @@
 {
   "name": "honesty-mcp",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "mcpName": "io.github.lkopietz3-byte/honesty-mcp",
   "description": "MCP server exposing fifteen 'honesty SDK' kits as tools any MCP-compatible coding agent can call while building or auditing a product.",
   "keywords": [
