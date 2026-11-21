@@ -2,17 +2,7 @@
 
 **[Try the kits in your browser →](https://lkopietz3-byte.github.io/honesty-kits/)** · Part of [honesty kits](https://github.com/lkopietz3-byte/honesty-kits), a family of small checks for the claims an AI product makes.
 
-An MCP (Model Context Protocol) server that exposes fifteen already-built,
-zero-runtime-dependency "honesty SDK" TypeScript libraries as tools any
-MCP-compatible coding agent (Claude Code, Claude Desktop, or any other MCP
-client) can call while building or auditing a product — grounded-citation
-checking, evidence corroboration grading, payout/mutation-invariance checks
-(scenario-tested, not a formal proof for every possible input), trust/
-authenticity scoring, provenance-claim validation, a claims registry, a
-tamper-evident audit chain, and recommendation/decision grading plus
-engine-vs-human divergence, numeric tracing, accuracy-claim assessment, data
-parity and review-date freshness, plus scaffolding for two runtime-library kits
-that don't fit the "check this content" shape.
+An MCP server that lets a coding agent such as Claude Code or Claude Desktop run the honesty kits as tools. Each tool checks its input and calls the real kit, and the server reimplements nothing. Two kits (agent receipts and spend caps) run inside your own app, so their tools hand you starter code instead of a verdict.
 
 This server is thin by design: every tool is a Zod input schema plus a
 handler that imports and calls the real, unmodified export from the wrapped
@@ -41,7 +31,7 @@ freshness-kit. All four tools are available with code execution off.
 ## Install
 
 `honesty-mcp` is published on npm. The 0.4.0 package uses registry dependencies
-for all fifteen sibling "honesty SDK" kits. `npm install` (or a plain `npx`)
+for all fifteen sibling honesty kits. `npm install` (or a plain `npx`)
 resolves everything from the public registry.
 
 The fastest way to run it, with no install step at all:
@@ -100,7 +90,7 @@ claude mcp add -e HONESTY_MCP_ENABLE_CODE_EXEC=1 honesty-mcp -- npx -y honesty-m
 }
 ```
 
-The server runs on the **stdio transport** — it reads JSON-RPC requests
+The server runs on the **stdio transport**. It reads JSON-RPC requests
 from stdin and writes responses to stdout, logging only a one-line startup
 banner to stderr so stdout stays a clean JSON-RPC channel. This is the
 transport Claude Code, Claude Desktop, and most local/CLI MCP client
@@ -135,7 +125,7 @@ mcp-publisher publish
 ```
 
 `package.json`'s `mcpName` field (`io.github.lkopietz3-byte/honesty-mcp`)
-must match `server.json`'s `name` field exactly — that's how the registry
+must match `server.json`'s `name` field exactly. That is how the registry
 verifies the npm package and the registry listing belong to the same
 publisher (see
 [package-types.mdx, "Ownership Verification"](https://github.com/modelcontextprotocol/registry/blob/main/docs/modelcontextprotocol-io/package-types.mdx)).
@@ -163,7 +153,7 @@ publisher (see
 | `check_parity` | parity-kit | Compares a mirror to canonical records or audits review stamps across two snapshots. Flags visible differences and stamp-only moves. |
 | `check_freshness` | freshness-kit | Finds aging or stale review dates using two thresholds in days and a required as-of date. |
 
-**2 scaffolding tools** (agent-receipt-kit, cost-governor-kit — these are
+**2 scaffolding tools** (agent-receipt-kit, cost-governor-kit; these are
 runtime libraries a project *installs and imports into its own running
 code*, not something checked on-demand the same way; see the code comments
 in `src/tools/agentReceiptScaffold.ts` / `costGovernorScaffold.ts` for why a
@@ -232,7 +222,7 @@ have the agent read them and send the text.
 timeout** (`src/lib/runFunctionJob.ts`), not on the server's own main
 thread. Earlier versions called the built function synchronously in-process,
 so a `while (true) {}` source string would block the *entire* stdio server
-forever — every other in-flight or future tool call along with it. Now, if
+forever, and every other in-flight or future tool call along with it. Now, if
 the worker doesn't finish within the timeout (default **10 seconds**,
 override with the `HONESTY_MCP_WORKER_TIMEOUT_MS` environment variable, in
 milliseconds, from 1 to 2147483647), it is forcibly `terminate()`d and the
@@ -242,9 +232,9 @@ written to the server's stderr with a `[honesty-mcp worker]` prefix, capped
 at 16 KiB per call, so it doesn't reach stdout, which carries the MCP
 protocol. Code that writes to file descriptor 1 directly (for example with
 `fs.writeSync(1, ...)`) is not intercepted and can corrupt the protocol
-stream; that is part of why this is not a sandbox. **This is not a sandbox** — the
+stream; that is part of why this is not a sandbox. **This is not a sandbox**. The
 worker has this process's full OS-level privileges (filesystem, network,
-environment variables) — it only bounds *time*. It does not stop caller
+environment variables), and it only bounds *time*. It does not stop caller
 code from reading your filesystem, making network requests, or doing
 anything else this Node process itself can do. The trust model above still
 applies in full: only pass code you wrote or trust, and don't expose this
@@ -285,13 +275,13 @@ older-line checks can be removed in a later release.
 - **This server adds no guarantee beyond what the kit it wraps already
   documents.** Every tool description was checked against its kit's own
   README "Honest limits"/"Limits" section as of the sibling-kit commits
-  this branch was built against — read that kit's README for the full
+  this branch was built against. Read that kit's README for the full
   detail behind any one-line tool description or table row here. If a
   kit's own limits change later, this server's wording can drift out of
   sync again; nothing here re-checks that automatically.
 - **`check_payout_invariance`, `check_mutation_invariance`, and
   `compute_divergence`'s worker-thread timeout bounds time only, not
-  behavior** — see "A note on the code-execution tools" above. It is not a
+  behavior**. See "A note on the code-execution tools" above. It is not a
   sandbox, and these paths are off unless `HONESTY_MCP_ENABLE_CODE_EXEC=1`.
 - **Version fields are bumped by hand.** `test/drift.test.ts` checks that
   `SERVER_VERSION` and the versions in `package.json`, `package-lock.json`
